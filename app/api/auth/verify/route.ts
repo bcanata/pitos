@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { magicLinks, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { magicLinks, users, invites, memberships } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { lucia } from "@/lib/auth";
 
 export async function GET(request: Request) {
@@ -30,7 +30,13 @@ export async function GET(request: Request) {
   const session = await lucia.createSession(user.id, {});
   const sessionCookie = lucia.createSessionCookie(session.id);
 
-  const response = NextResponse.redirect(new URL("/app", request.url));
+  // If an invite token was passed along (from /auth?invite=...), redirect through accept
+  const inviteToken = url.searchParams.get("invite");
+  const redirectTarget = inviteToken
+    ? new URL(`/api/invites/accept?token=${encodeURIComponent(inviteToken)}`, request.url)
+    : new URL("/app", request.url);
+
+  const response = NextResponse.redirect(redirectTarget);
   response.cookies.set(sessionCookie.name, sessionCookie.value, sessionCookie.attributes);
   return response;
 }
