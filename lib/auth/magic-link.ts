@@ -1,7 +1,6 @@
 import { randomBytes } from "crypto";
 import { db } from "@/db";
 import { magicLinks } from "@/db/schema";
-import { Resend } from "resend";
 import { eq } from "drizzle-orm";
 
 export async function sendMagicLink(email: string): Promise<void> {
@@ -13,15 +12,34 @@ export async function sendMagicLink(email: string): Promise<void> {
 
   const url = `${process.env.APP_URL ?? "http://localhost:3000"}/api/auth/verify?token=${token}`;
 
-  if (process.env.RESEND_API_KEY) {
-    await new Resend(process.env.RESEND_API_KEY).emails.send({
-      from: "PitOS <noreply@pitos.app>",
-      to: email,
-      subject: "Your PitOS magic link",
-      html: `<p>Click <a href="${url}">here</a> to sign in to PitOS. This link expires in 15 minutes.</p>`,
-    });
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = process.env.CLOUDFLARE_EMAIL_API_TOKEN;
+  const fromEmail = process.env.FROM_EMAIL ?? "noreply@pitos.app";
+
+  if (accountId && apiToken) {
+    const res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/email-service/send`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: `PitOS <${fromEmail}>`,
+          to: email,
+          subject: "Your PitOS magic link",
+          html: `<p>Click <a href="${url}">here</a> to sign in to PitOS. This link expires in 15 minutes.</p>`,
+          text: `Sign in to PitOS: ${url}\n\nThis link expires in 15 minutes.`,
+        }),
+      }
+    );
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Cloudflare Email send failed: ${res.status} ${body}`);
+    }
   } else {
-    console.log("Magic link:", url);
+    console.log("[dev] Magic link:", url);
   }
 }
 
