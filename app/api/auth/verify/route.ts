@@ -23,11 +23,11 @@ export async function GET(request: Request) {
     user = db.select().from(users).where(eq(users.email, magicLink.email)).get()!;
   }
 
-  // Mark link as used
-  db.update(magicLinks).set({ usedAt: new Date() }).where(eq(magicLinks.token, token)).run();
-
-  // Create session
+  // Create session BEFORE marking link used, so a failure doesn't burn the token
   const session = await lucia.createSession(user.id, {});
+
+  // Mark link as used only after session is successfully created
+  db.update(magicLinks).set({ usedAt: new Date() }).where(eq(magicLinks.token, token)).run();
   const sessionCookie = lucia.createSessionCookie(session.id);
 
   // If an invite token was passed along (from /auth?invite=...), redirect through accept
