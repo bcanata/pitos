@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { db } from "@/db";
 import { messages, channels, memberships } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { notifyChannel } from "@/lib/sse";
 
 type Params = { params: Promise<{ channelId: string }> };
 
@@ -52,23 +53,6 @@ export async function POST(req: Request, { params }: Params) {
   notifyChannel(channelId, { type: "message", data: message });
 
   return NextResponse.json({ message });
-}
-
-// ─── SSE registry (in-process, resets on cold start) ─────────────────────────
-type Subscriber = (event: string) => void;
-const subscribers = new Map<string, Set<Subscriber>>();
-
-export function subscribe(channelId: string, cb: Subscriber) {
-  if (!subscribers.has(channelId)) subscribers.set(channelId, new Set());
-  subscribers.get(channelId)!.add(cb);
-  return () => subscribers.get(channelId)?.delete(cb);
-}
-
-export function notifyChannel(channelId: string, payload: unknown) {
-  const subs = subscribers.get(channelId);
-  if (!subs) return;
-  const event = `data: ${JSON.stringify(payload)}\n\n`;
-  subs.forEach(cb => cb(event));
 }
 
 async function triggerChannelAgent(channelId: string, messageId: string, teamId: string) {
