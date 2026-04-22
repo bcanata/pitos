@@ -1,0 +1,118 @@
+"use client";
+import { useState, useEffect, useRef } from "react";
+import { Hash, Send } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import MessageBubble from "./message-bubble";
+
+interface Message {
+  id: string;
+  channelId: string;
+  userId: string | null;
+  content: string;
+  agentGenerated: boolean;
+  agentType: string | null;
+  juryReflexKind: string | null;
+  createdAt: string;
+}
+
+interface Props {
+  channel: { id: string; name: string; description: string | null };
+  initialMessages: Message[];
+}
+
+export default function ChannelView({ channel, initialMessages }: Props) {
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // SSE subscription
+  useEffect(() => {
+    const es = new EventSource(`/api/channels/${channel.id}/sse`);
+    es.onmessage = (e) => {
+      const { type, data } = JSON.parse(e.data);
+      if (type === "message") {
+        setMessages(prev => {
+          if (prev.find(m => m.id === data.id)) return prev;
+          return [...prev, data];
+        });
+      }
+    };
+    return () => es.close();
+  }, [channel.id]);
+
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  async function sendMessage(e: React.FormEvent) {
+    e.preventDefault();
+    if (!input.trim() || sending) return;
+    setSending(true);
+    try {
+      await fetch(`/api/channels/${channel.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: input.trim() }),
+      });
+      setInput("");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(e as unknown as React.FormEvent);
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
+        <Hash size={18} className="text-muted-foreground" />
+        <h1 className="font-semibold">{channel.name}</h1>
+        {channel.description && (
+          <span className="text-sm text-muted-foreground border-l border-border pl-3">{channel.description}</span>
+        )}
+      </div>
+
+      {/* Messages */}
+      <ScrollArea className="flex-1 px-4 py-4">
+        {messages.length === 0 && (
+          <p className="text-center text-muted-foreground text-sm py-8">
+            No messages yet. Say something.
+          </p>
+        )}
+        <div className="space-y-1">
+          {messages.map(m => <MessageBubble key={m.id} message={m} />)}
+        </div>
+        <div ref={bottomRef} />
+      </ScrollArea>
+
+      {/* Input */}
+      <form onSubmit={sendMessage} className="px-4 py-3 border-t border-border shrink-0">
+        <div className="flex gap-2 items-end">
+          <Textarea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={`Message #${channel.name}`}
+            rows={1}
+            className="flex-1 min-h-[40px] max-h-[120px] resize-none"
+            disabled={sending}
+          />
+          <Button type="submit" size="icon" disabled={sending || !input.trim()}>
+            <Send size={16} />
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">Enter to send · Shift+Enter for newline</p>
+      </form>
+    </div>
+  );
+}
