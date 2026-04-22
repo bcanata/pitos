@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Hash, Search, Settings } from "lucide-react";
+import { Hash, Search, Settings, BookMarked, LogOut, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -50,6 +50,42 @@ export default function ChannelSidebar({ team, channels }: Props) {
         >
           <Search size={14} />
           Ask PitOS
+        </Link>
+        <Link
+          href="/app/decisions"
+          className={cn(
+            "flex items-center gap-2 mx-2 px-2 py-1.5 rounded text-sm",
+            pathname === "/app/decisions"
+              ? "bg-primary/20 text-primary font-medium"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          <BookMarked size={14} />
+          Decisions
+        </Link>
+        <Link
+          href="/app/exit-interview"
+          className={cn(
+            "flex items-center gap-2 mx-2 px-2 py-1.5 rounded text-sm",
+            pathname === "/app/exit-interview"
+              ? "bg-primary/20 text-primary font-medium"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          <LogOut size={14} />
+          Exit Interview
+        </Link>
+        <Link
+          href="/app/season-recap"
+          className={cn(
+            "flex items-center gap-2 mx-2 px-2 py-1.5 rounded text-sm",
+            pathname === "/app/season-recap"
+              ? "bg-primary/20 text-primary font-medium"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          <FileText size={14} />
+          Season Recap
         </Link>
         <Link
           href="/app/settings"
