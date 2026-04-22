@@ -39,6 +39,9 @@ yarn-error.log*
 *.db-shm
 *.db-wal
 
+# CLI translation cache (auto-generated, language-specific)
+cli/i18n/cache/*.json
+
 # vercel
 .vercel
 

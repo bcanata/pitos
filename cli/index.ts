@@ -1,0 +1,271 @@
+#!/usr/bin/env node
+import { input, password, select, confirm } from "@inquirer/prompts";
+import Anthropic from "@anthropic-ai/sdk";
+import { spawn } from "child_process";
+import { t, loadLanguage, loadCustomBundle } from "./i18n/index";
+import { translateBundle } from "./i18n/translate";
+import { writeEnvFile } from "./env-writer";
+import { setupDatabase } from "./setup";
+import {
+  isVercelInstalled,
+  isVercelLinked,
+  runInteractive,
+  pushEnvVars,
+  deployProd,
+} from "./deploy";
+
+const force = process.argv.includes("--force");
+
+const LANGUAGES = [
+  { value: "en", name: "English" },
+  { value: "tr", name: "Türkçe" },
+  { value: "es", name: "Español" },
+  { value: "fr", name: "Français" },
+  { value: "de", name: "Deutsch" },
+  { value: "pt", name: "Português" },
+  { value: "zh", name: "中文" },
+  { value: "ja", name: "日本語" },
+  { value: "he", name: "עברית" },
+  { value: "other", name: "Other / Diğer / Otro / Autre..." },
+];
+
+async function main() {
+  const bar = "═".repeat(52);
+  console.log(`\n${bar}`);
+  console.log("  PitOS — First-run setup");
+  console.log(`${bar}\n`);
+  console.log("This wizard sets up your team workspace in about 2 minutes.\n");
+
+  // ── Step 1: Claude API key (needed before language for on-demand translation) ──
+  const apiKey = await password({ message: "Claude API key (sk-ant-...):" });
+
+  process.stdout.write("Validating API key... ");
+  try {
+    const client = new Anthropic({ apiKey });
+    const resp = await client.messages.create({
+      model: "claude-opus-4-7",
+      max_tokens: 10,
+      messages: [{ role: "user", content: "Reply: ok" }],
+    });
+    if (resp.content[0].type !== "text") throw new Error("unexpected response type");
+    console.log("✓\n");
+  } catch {
+    console.log(
+      "\nInvalid API key — check console.anthropic.com and try again.\n"
+    );
+    process.exit(1);
+  }
+
+  // ── Step 2: Language selection ──────────────────────────────────────────────
+  const langCode = await select({
+    message: "Select your team's language:",
+    choices: LANGUAGES,
+  });
+
+  if (langCode === "other") {
+    const langName = await input({
+      message: "Enter your language (e.g. Korean, Arabic, Farsi):",
+      validate: (v) => v.trim().length > 0 || "Please enter a language name.",
+    });
+    process.stdout.write(`\nTranslating PitOS to ${langName}... `);
+    const bundle = await translateBundle(langName, apiKey);
+    if (bundle) {
+      loadCustomBundle(bundle);
+      console.log("✓\n");
+    } else {
+      console.log("failed — continuing in English.\n");
+    }
+  } else {
+    loadLanguage(langCode);
+    if (langCode !== "en") console.log();
+  }
+
+  // ── Steps 3–8: Team + admin details (now localized) ────────────────────────
+  const teamNumberRaw = await input({ message: t("prompt_team_number") });
+  const teamNumber = teamNumberRaw.trim()
+    ? parseInt(teamNumberRaw.trim(), 10)
+    : undefined;
+
+  const teamName = await input({
+    message: t("prompt_team_name"),
+    validate: (v) => v.trim().length > 0 || t("team_name_required"),
+  });
+
+  const adminName = await input({ message: t("prompt_admin_name") });
+
+  const adminEmail = await input({
+    message: t("prompt_admin_email"),
+    validate: (v) =>
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || t("email_invalid"),
+  });
+
+  // ── Step 9: Cloudflare Email (optional) ────────────────────────────────────
+  console.log();
+  const skipCloudflare = await confirm({
+    message: t("cloudflare_skip"),
+    default: true,
+  });
+
+  let cfAccountId = "";
+  let cfToken = "";
+  let fromEmail = "";
+
+  if (!skipCloudflare) {
+    cfAccountId = await input({ message: t("prompt_cf_account") });
+    cfToken = await input({ message: t("prompt_cf_token") });
+    fromEmail = await input({ message: t("prompt_cf_from") });
+  }
+
+  // ── Step 10: Confirmation ──────────────────────────────────────────────────
+  const sep = "─".repeat(44);
+  console.log(`\n${sep}`);
+  console.log(`  Team:   ${teamName}${teamNumber ? ` (#${teamNumber})` : ""}`);
+  console.log(`  Admin:  ${adminName || "(unnamed)"} <${adminEmail}>`);
+  console.log(`  Email:  ${skipCloudflare ? "console (dev mode)" : fromEmail}`);
+  console.log(`${sep}\n`);
+
+  const proceed = await confirm({ message: t("confirm_proceed"), default: true });
+  if (!proceed) {
+    console.log("\nAborted.\n");
+    process.exit(0);
+  }
+
+  // ── Write .env.local ───────────────────────────────────────────────────────
+  console.log();
+  process.stdout.write(t("setup_env") + " ");
+  let written;
+  try {
+    written = writeEnvFile(
+      {
+        anthropicApiKey: apiKey,
+        cloudflareAccountId: cfAccountId,
+        cloudflareEmailApiToken: cfToken,
+        fromEmail,
+      },
+      force
+    );
+    console.log("✓");
+  } catch (e) {
+    if (e instanceof Error && e.message === "ENV_EXISTS") {
+      console.log(`\n${t("env_exists")}\n`);
+      process.exit(1);
+    }
+    throw e;
+  }
+
+  // ── Database + seed ────────────────────────────────────────────────────────
+  process.stdout.write(t("setup_db") + " ");
+  const signInUrl = setupDatabase({
+    email: adminEmail,
+    name: adminName,
+    teamName,
+    teamNumber,
+    appUrl: "http://localhost:3000",
+  });
+  console.log("✓");
+
+  // ── Done (local) ───────────────────────────────────────────────────────────
+  console.log(`\n${bar}`);
+  console.log(`  ${t("setup_complete")}`);
+  console.log(`${bar}`);
+  console.log(`\n${t("signin_url")}`);
+  console.log(`\n  ${signInUrl}\n`);
+
+  // ── Optional: deploy to Vercel ─────────────────────────────────────────────
+  console.log(`\n${sep}`);
+  console.log(`  ${t("deploy_header")}`);
+  console.log(`${sep}`);
+  console.log(`${t("deploy_explainer")}`);
+  console.log(`\n${t("deploy_warning_db")}\n`);
+
+  const doDeploy = await confirm({ message: t("deploy_prompt"), default: false });
+
+  if (doDeploy) {
+    try {
+      await runDeployFlow({
+        anthropicApiKey: written.anthropicApiKey,
+        authSecret: written.authSecret,
+        cloudflareAccountId: written.cloudflareAccountId,
+        cloudflareEmailApiToken: written.cloudflareEmailApiToken,
+        fromEmail: written.fromEmail,
+      });
+      // deploy completed — skip dev-server offer
+      return;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`\n${t("deploy_failed")}\n  ${msg}\n`);
+      // fall through to dev-server offer
+    }
+  }
+
+  // ── Optional: start dev server ─────────────────────────────────────────────
+  const startDev = await confirm({ message: t("prompt_start_dev"), default: true });
+
+  if (startDev) {
+    console.log("\nStarting dev server...\n");
+    const child = spawn("npm", ["run", "dev"], { stdio: "inherit" });
+    child.on("error", (err) => {
+      console.error("Could not start dev server:", err.message);
+      console.log("Run manually: npm run dev\n");
+    });
+  } else {
+    console.log("\nRun: npm run dev\n");
+  }
+}
+
+interface DeployEnvs {
+  anthropicApiKey: string;
+  authSecret: string;
+  cloudflareAccountId: string;
+  cloudflareEmailApiToken: string;
+  fromEmail: string;
+}
+
+async function runDeployFlow(envs: DeployEnvs): Promise<void> {
+  if (!isVercelInstalled()) {
+    console.log(`\n${t("deploy_cli_missing")}\n`);
+    throw new Error("vercel_cli_missing");
+  }
+
+  // 1. Link (interactive) if not already linked.
+  if (!isVercelLinked()) {
+    console.log(`\n${t("deploy_linking")}\n`);
+    const code = await runInteractive("vercel", ["link"]);
+    if (code !== 0 || !isVercelLinked()) {
+      throw new Error(t("deploy_link_failed"));
+    }
+  }
+
+  // 2. Push env vars (everything except APP_URL — we set that after the first deploy).
+  console.log(`\n${t("deploy_env_push")}`);
+  await pushEnvVars({
+    ANTHROPIC_API_KEY: envs.anthropicApiKey,
+    AUTH_SECRET: envs.authSecret,
+    CLOUDFLARE_ACCOUNT_ID: envs.cloudflareAccountId,
+    CLOUDFLARE_EMAIL_API_TOKEN: envs.cloudflareEmailApiToken,
+    FROM_EMAIL: envs.fromEmail,
+  });
+
+  // 3. First production deploy — we don't know the URL yet.
+  console.log(`\n${t("deploy_deploying")}\n`);
+  const deployedUrl = await deployProd();
+
+  // 4. Update APP_URL to the real deployed URL, then redeploy so it takes effect.
+  console.log(`\n${t("deploy_updating_url")} (${deployedUrl})`);
+  await pushEnvVars({ APP_URL: deployedUrl });
+
+  console.log(`\n${t("deploy_redeploying")}\n`);
+  const finalUrl = await deployProd();
+
+  // 5. Success.
+  console.log(`\n${"═".repeat(52)}`);
+  console.log(`  ${t("deploy_done")}`);
+  console.log(`${"═".repeat(52)}`);
+  console.log(`\n  ${finalUrl}/onboarding\n`);
+}
+
+main().catch((err: unknown) => {
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error(`\n${t("error_prefix")} ${msg}\n`);
+  process.exit(1);
+});
