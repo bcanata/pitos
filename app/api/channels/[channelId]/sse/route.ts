@@ -1,4 +1,4 @@
-import { subscribe } from "../messages/route";
+import { subscribe } from "@/lib/sse";
 
 export const runtime = "nodejs"; // SSE needs Node.js runtime
 
