@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Hash, Search, Settings } from "lucide-react";
+import { Gavel, Hash, Search, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -50,6 +50,18 @@ export default function ChannelSidebar({ team, channels }: Props) {
         >
           <Search size={14} />
           Ask PitOS
+        </Link>
+        <Link
+          href="/app/judge-sim"
+          className={cn(
+            "flex items-center gap-2 mx-2 px-2 py-1.5 rounded text-sm",
+            pathname === "/app/judge-sim"
+              ? "bg-primary/20 text-primary font-medium"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          <Gavel size={14} />
+          Judge Sim
         </Link>
         <Link
           href="/app/settings"
