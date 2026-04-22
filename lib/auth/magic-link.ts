@@ -18,7 +18,7 @@ export async function sendMagicLink(email: string): Promise<void> {
 
   if (accountId && apiToken) {
     const res = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${accountId}/email-service/send`,
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/email/sending/send`,
       {
         method: "POST",
         headers: {
