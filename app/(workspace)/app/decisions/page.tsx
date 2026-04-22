@@ -84,7 +84,12 @@ export default function DecisionsPage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-8">
+    <div className="flex flex-col h-full overflow-y-auto">
+    <div className="border-b border-border px-6 py-4">
+      <h1 className="text-lg font-semibold">Decisions</h1>
+      <p className="text-sm text-muted-foreground">Record and review key team decisions with rationale.</p>
+    </div>
+    <div className="p-6 max-w-3xl mx-auto w-full space-y-8">
       {/* Record a Decision */}
       <Card>
         <CardHeader>
@@ -146,31 +151,34 @@ export default function DecisionsPage() {
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : decisions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No decisions recorded yet.</p>
+          <div className="rounded-lg border border-border bg-card py-10 text-center">
+            <p className="text-sm font-medium text-muted-foreground">No decisions recorded yet</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">Use the form above to log your first decision.</p>
+          </div>
         ) : (
           decisions.map((d) => (
             <Card key={d.id}>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">{d.decision}</CardTitle>
+                <CardTitle className="text-base leading-snug">{d.decision}</CardTitle>
                 <p className="text-xs text-muted-foreground">{formatDate(d.recordedAt)}</p>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm">
+              <CardContent className="space-y-3 text-sm">
                 {d.rationale && (
                   <div>
-                    <span className="font-medium text-muted-foreground">Rationale: </span>
-                    {d.rationale}
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Rationale</p>
+                    <p className="text-foreground/90 leading-relaxed">{d.rationale}</p>
                   </div>
                 )}
                 {d.alternativesConsidered && (
                   <div>
-                    <span className="font-medium text-muted-foreground">Alternatives considered: </span>
-                    {d.alternativesConsidered}
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Alternatives Considered</p>
+                    <p className="italic text-muted-foreground leading-relaxed">{d.alternativesConsidered}</p>
                   </div>
                 )}
                 {d.contextAtTime && (
                   <div>
-                    <span className="font-medium text-muted-foreground">Context: </span>
-                    {d.contextAtTime}
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Context</p>
+                    <p className="text-foreground/80 leading-relaxed">{d.contextAtTime}</p>
                   </div>
                 )}
               </CardContent>
@@ -178,6 +186,7 @@ export default function DecisionsPage() {
           ))
         )}
       </div>
+    </div>
     </div>
   );
 }

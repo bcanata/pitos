@@ -154,13 +154,13 @@ export default function JudgeSimPage() {
             Select an award to practice
           </p>
 
-          <div className="grid gap-3">
+          <div className="grid grid-cols-3 gap-2">
             {AWARDS.map((award) => (
               <button
                 key={award}
                 onClick={() => startSession(award)}
                 disabled={loading}
-                className="w-full text-left px-4 py-3 rounded-lg border border-border bg-card hover:bg-muted hover:border-primary/50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="text-center px-3 py-3 rounded-lg border border-border bg-card hover:bg-muted hover:border-primary/50 transition-colors text-sm font-medium leading-snug disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {award}
               </button>
@@ -201,26 +201,29 @@ export default function JudgeSimPage() {
                 <div
                   className={`max-w-[80%] rounded-lg px-4 py-2.5 text-sm ${
                     msg.role === "judge"
-                      ? "bg-muted text-foreground"
+                      ? "bg-secondary border border-border text-foreground"
                       : "bg-primary text-primary-foreground"
                   }`}
                 >
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  <p className={`text-xs font-semibold mb-1 ${msg.role === "judge" ? "text-muted-foreground" : "opacity-70"}`}>
+                    {msg.role === "judge" ? "Judge" : "You"}
+                  </p>
+                  <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                 </div>
               </div>
             ))}
           </div>
 
           {/* Gap report card */}
-          <Card className="border-primary/30 bg-primary/5">
+          <Card className="border-amber-500/30 bg-amber-500/5">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
+              <CardTitle className="text-base flex items-center gap-2 text-amber-400">
                 <Gavel size={16} />
                 Evidence Gap Report
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">{gapReport}</p>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">{gapReport}</p>
             </CardContent>
           </Card>
 
@@ -263,14 +266,14 @@ export default function JudgeSimPage() {
             <div
               className={`max-w-[78%] rounded-lg px-4 py-2.5 text-sm ${
                 msg.role === "judge"
-                  ? "bg-muted text-foreground"
+                  ? "bg-secondary border border-border text-foreground"
                   : "bg-primary text-primary-foreground"
               }`}
             >
-              <p className="text-xs font-medium mb-1 opacity-60">
+              <p className={`text-xs font-semibold mb-1 ${msg.role === "judge" ? "text-muted-foreground" : "opacity-70"}`}>
                 {msg.role === "judge" ? "Judge" : "You"}
               </p>
-              <p className="whitespace-pre-wrap">{msg.content}</p>
+              <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
             </div>
           </div>
         ))}

@@ -14,11 +14,11 @@ export default function RightPanel({ channelId }: Props) {
 
   return (
     <div className="flex shrink-0 h-full">
-      {/* Toggle button — always visible on the left edge of the panel area */}
-      <div className="flex items-center justify-center w-5 border-l border-border bg-card shrink-0">
+      {/* Toggle button — always visible */}
+      <div className="flex items-center justify-center w-6 border-l border-border bg-card shrink-0">
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center justify-center w-5 h-10 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           aria-label={expanded ? "Collapse right panel" : "Expand right panel"}
         >
           {expanded ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
@@ -31,7 +31,7 @@ export default function RightPanel({ channelId }: Props) {
           className="flex flex-col h-full bg-card border-l border-border overflow-hidden"
           style={{ width: 280 }}
         >
-          {/* Tasks section — fixed height */}
+          {/* Tasks section */}
           <div className="shrink-0 max-h-72 overflow-y-auto border-b border-border">
             <TaskPanel channelId={channelId} />
           </div>

@@ -11,6 +11,36 @@ interface GeneratedDocument {
   createdAt: string | number;
 }
 
+function RecapContent({ content }: { content: string }) {
+  const paragraphs = content.split(/\n\n+/);
+
+  return (
+    <div className="space-y-4 text-sm leading-relaxed">
+      {paragraphs.map((para, i) => {
+        const trimmed = para.trim();
+        if (!trimmed) return null;
+
+        // Detect numbered section headers like "1." or "1." at line start
+        const isSection = /^\d+\.\s+\S/.test(trimmed) && trimmed.split("\n").length === 1;
+
+        if (isSection) {
+          return (
+            <h3 key={i} className="text-base font-semibold text-foreground mt-6 first:mt-0">
+              {trimmed}
+            </h3>
+          );
+        }
+
+        return (
+          <p key={i} className="text-foreground/90 whitespace-pre-wrap">
+            {trimmed}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function SeasonRecapPage() {
   const [document, setDocument] = useState<GeneratedDocument | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -116,19 +146,15 @@ export default function SeasonRecapPage() {
             <p className="text-xs text-muted-foreground">{formatDate(document.createdAt)}</p>
           </CardHeader>
           <CardContent>
-            <div
-              className="text-sm leading-relaxed whitespace-pre-wrap font-mono-0 prose prose-sm max-w-none dark:prose-invert"
-              style={{ whiteSpace: "pre-wrap" }}
-            >
-              {document.contentMd}
-            </div>
+            <RecapContent content={document.contentMd} />
           </CardContent>
         </Card>
       ) : !generating ? (
         <Card>
-          <CardContent className="py-8 text-center">
-            <p className="text-sm text-muted-foreground">
-              No season recap yet. Click "Generate Season Recap" to create one.
+          <CardContent className="py-12 text-center">
+            <p className="text-sm font-medium text-muted-foreground">No season recap yet</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              Click &ldquo;Generate Season Recap&rdquo; to create one from your channel history.
             </p>
           </CardContent>
         </Card>
