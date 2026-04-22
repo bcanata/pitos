@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Hash } from "lucide-react";
+import { Hash, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -36,6 +36,21 @@ export default function ChannelSidebar({ team, channels }: Props) {
             {ch.name}
           </Link>
         ))}
+      </div>
+      {/* Ask / Memory search */}
+      <div className="py-2 border-t border-border">
+        <Link
+          href="/app/ask"
+          className={cn(
+            "flex items-center gap-2 mx-2 px-2 py-1.5 rounded text-sm",
+            pathname === "/app/ask"
+              ? "bg-primary/20 text-primary font-medium"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          <Search size={14} />
+          Ask PitOS
+        </Link>
       </div>
     </aside>
   );
