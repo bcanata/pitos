@@ -85,11 +85,12 @@ export default function ChannelView({ channel, initialMessages }: Props) {
       {/* Messages */}
       <ScrollArea className="flex-1 px-4 py-4">
         {messages.length === 0 && (
-          <p className="text-center text-muted-foreground text-sm py-8">
-            No messages yet. Say something.
-          </p>
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <p className="text-sm font-medium text-muted-foreground">No messages yet</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">Start the conversation below.</p>
+          </div>
         )}
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           {messages.map(m => <MessageBubble key={m.id} message={m} />)}
         </div>
         <div ref={bottomRef} />
