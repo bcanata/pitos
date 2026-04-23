@@ -13,7 +13,7 @@ export async function GET(_req: Request, { params }: Params) {
   const { channelId } = await params;
 
   // agentRuns stores channelId inside inputContext JSON: { channelId, messageId, messageCount }
-  const runs = db
+  const runs = await db
     .select({
       id: agentRuns.id,
       action: sql<string>`json_extract(${agentRuns.output}, '$.action')`,
