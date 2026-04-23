@@ -1,5 +1,6 @@
 /**
- * Backfill the full Turkish channel list into every existing team.
+ * Backfill the full default channel list into every existing team,
+ * localized to each team creator's language.
  * Run with: npx tsx scripts/backfill-channels.ts
  *
  * Reads Turso credentials from env (TURSO_DATABASE_URL + TURSO_AUTH_TOKEN)
@@ -7,36 +8,11 @@
  */
 
 import { randomUUID } from "crypto";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../db";
-import { teams, channels, channelMembers, memberships } from "../db/schema";
-
-type ChannelDef = {
-  name: string;
-  description: string;
-  type?: "public" | "private";
-};
-
-const defaultChannels: ChannelDef[] = [
-  { name: "genel",       description: "Duyurular, takım çapında konular" },
-  { name: "sohbet",      description: "Sosyal, takım kültürü, off-topic" },
-  { name: "mentorlar",   description: "Mentor koordinasyonu", type: "private" },
-  { name: "mekanik",     description: "Tasarım, montaj, test" },
-  { name: "yazilim",     description: "Kod, vision, elektrik-yazılım entegrasyonu" },
-  { name: "elektrik",    description: "Kablolama, motor controller, sensör" },
-  { name: "cad",         description: "Onshape/SolidWorks tasarım, parça listesi" },
-  { name: "strateji",    description: "Oyun analizi, ittifak seçimi, scouting" },
-  { name: "outreach",    description: "Topluluk etkinlikleri, okul ziyaretleri, demolar" },
-  { name: "sponsorlar",  description: "Sponsor ilişkileri, toplantılar, takip" },
-  { name: "medya",       description: "Sosyal medya, fotoğraf, video, basın" },
-  { name: "oduller",     description: "Impact, Engineering Inspiration, Dean's List başvuruları" },
-  { name: "scouting",    description: "Rakip analiz, maç verisi, ittifak seçimi" },
-  { name: "pit-ekibi",   description: "Turnuva pit operasyonları" },
-  { name: "seyahat",     description: "Ulaşım, konaklama, lojistik" },
-  { name: "kit-parcalari", description: "KOP envanter, kayıp parça takibi" },
-  { name: "guvenlik",    description: "Güvenlik olayları, ekipman bakımı" },
-  { name: "mezunlar",    description: "Mezunlarla bağlantı — Exit Interview kaydı" },
-];
+import { teams, channels, channelMembers, memberships, users } from "../db/schema";
+import { defaultChannels } from "../lib/onboarding/default-channels";
+import { translateChannels } from "../lib/i18n/translate-channels";
 
 async function main() {
   const target = process.env.TURSO_DATABASE_URL ? "Turso" : "local SQLite";
@@ -47,6 +23,13 @@ async function main() {
 
   for (const team of allTeams) {
     console.log(`\n— Team: ${team.name} (${team.id})`);
+
+    const creator = team.createdByUserId
+      ? await db.select().from(users).where(eq(users.id, team.createdByUserId)).get()
+      : null;
+    const language = creator?.language ?? "en";
+    const localized = await translateChannels(defaultChannels, language);
+    console.log(`  language: ${language}`);
 
     const existing = await db
       .select()
@@ -63,14 +46,16 @@ async function main() {
 
     const now = new Date();
 
-    for (const ch of defaultChannels) {
+    for (let i = 0; i < localized.length; i++) {
+      const ch = localized[i];
+      const type = defaultChannels[i].type ?? "public";
+
       if (existingNames.has(ch.name)) {
         console.log(`  · skip #${ch.name} (exists)`);
         continue;
       }
 
       const channelId = randomUUID();
-      const type = ch.type ?? "public";
 
       await db.insert(channels).values({
         id: channelId,

@@ -4,6 +4,8 @@ import { db } from "@/db";
 import { users, teams, memberships, channels, channelMembers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { runOnboardingStep } from "@/lib/agents/onboarding-agent";
+import { defaultChannels } from "@/lib/onboarding/default-channels";
+import { translateChannels } from "@/lib/i18n/translate-channels";
 
 export async function GET() {
   const { user } = await getSession();
@@ -69,33 +71,15 @@ export async function POST(req: Request) {
       await db.update(users).set({ name: memberName }).where(eq(users.id, user.id));
     }
 
-    const defaultChannels: { name: string; description: string; type?: "public" | "private" }[] = [
-      // Çekirdek
-      { name: "genel",       description: "Duyurular, takım çapında konular" },
-      { name: "sohbet",      description: "Sosyal, takım kültürü, off-topic" },
-      { name: "mentorlar",   description: "Mentor koordinasyonu", type: "private" },
-      // Alt takımlar
-      { name: "mekanik",     description: "Tasarım, montaj, test" },
-      { name: "yazilim",     description: "Kod, vision, elektrik-yazılım entegrasyonu" },
-      { name: "elektrik",    description: "Kablolama, motor controller, sensör" },
-      { name: "cad",         description: "Onshape/SolidWorks tasarım, parça listesi" },
-      { name: "strateji",    description: "Oyun analizi, ittifak seçimi, scouting" },
-      // Business / Outreach
-      { name: "outreach",    description: "Topluluk etkinlikleri, okul ziyaretleri, demolar" },
-      { name: "sponsorlar",  description: "Sponsor ilişkileri, toplantılar, takip" },
-      { name: "medya",       description: "Sosyal medya, fotoğraf, video, basın" },
-      { name: "oduller",     description: "Impact, Engineering Inspiration, Dean's List başvuruları" },
-      // Sezona özel
-      { name: "scouting",    description: "Rakip analiz, maç verisi, ittifak seçimi" },
-      { name: "pit-ekibi",   description: "Turnuva pit operasyonları" },
-      { name: "seyahat",     description: "Ulaşım, konaklama, lojistik" },
-      // Opsiyonel
-      { name: "kit-parcalari", description: "KOP envanter, kayıp parça takibi" },
-      { name: "guvenlik",    description: "Güvenlik olayları, ekipman bakımı" },
-      { name: "mezunlar",    description: "Mezunlarla bağlantı — Exit Interview kaydı" },
-    ];
+    const currentUser = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, user.id))
+      .get();
+    const language = currentUser?.language ?? "en";
+    const channelsToCreate = await translateChannels(defaultChannels, language);
 
-    for (const ch of defaultChannels) {
+    for (const ch of channelsToCreate) {
       const channelId = crypto.randomUUID();
       await db.insert(channels).values({
         id: channelId,
