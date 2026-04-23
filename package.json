@@ -1,6 +1,6 @@
 {
-  "name": "pitos",
-  "version": "0.1.0",
+  "name": "pitos-app",
+  "version": "0.1.2",
   "description": "FRC team workspace with magic-link auth, Slack-style channels, and Claude-powered agents. Run `npx pitos` to scaffold.",
   "keywords": [
     "frc",
@@ -16,7 +16,7 @@
   },
   "license": "MIT",
   "bin": {
-    "pitos": "bin/pitos.js",
+    "pitos-app": "bin/pitos.js",
     "pitos-mcp": "bin/pitos-mcp.js"
   },
   "files": [
