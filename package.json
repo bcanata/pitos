@@ -1,11 +1,43 @@
 {
   "name": "pitos",
   "version": "0.1.0",
-  "private": true,
+  "description": "FRC team workspace with magic-link auth, Slack-style channels, and Claude-powered agents. Run `npx pitos` to scaffold.",
+  "keywords": ["frc", "robotics", "workspace", "claude", "anthropic", "nextjs"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bcanata/pitos.git"
+  },
+  "license": "MIT",
   "bin": {
     "pitos": "./bin/pitos.js",
     "pitos-mcp": "./bin/pitos-mcp.js"
   },
+  "files": [
+    "app",
+    "bin",
+    "cli",
+    "components",
+    "db",
+    "drizzle",
+    "lib",
+    "mcp",
+    "public",
+    "scripts",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "LICENSE",
+    "README.md",
+    ".env.example",
+    "components.json",
+    "drizzle.config.ts",
+    "eslint.config.mjs",
+    "next.config.ts",
+    "next-env.d.ts",
+    "postcss.config.mjs",
+    "proxy.ts",
+    "tsconfig.json",
+    "vercel.json"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",

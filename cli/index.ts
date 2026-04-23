@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import { input, password, select, confirm } from "@inquirer/prompts";
 import Anthropic from "@anthropic-ai/sdk";
-import { spawn } from "child_process";
+import { spawn, spawnSync } from "child_process";
+import { cp } from "fs/promises";
+import { existsSync } from "fs";
+import path from "path";
 import { t, loadLanguage, loadCustomBundle } from "./i18n/index";
 import { translateBundle } from "./i18n/translate";
 import { writeEnvFile } from "./env-writer";
@@ -15,6 +18,91 @@ import {
 } from "./deploy";
 
 const force = process.argv.includes("--force");
+const PKG_ROOT = path.join(__dirname, "..");
+const SKIP_TOP_LEVEL = new Set([
+  "node_modules",
+  ".next",
+  ".vercel",
+  ".git",
+  ".claude",
+  ".DS_Store",
+  ".env.local",
+  "pitos.db",
+  "pitos.db-shm",
+  "pitos.db-wal",
+  "tsconfig.tsbuildinfo",
+]);
+
+/**
+ * If the user ran `npx pitos` from outside a pitos checkout, copy the
+ * package files into a new directory under cwd and `npm install` there,
+ * then chdir so the rest of the wizard runs against that fresh project.
+ *
+ * Detection: cwd is already a pitos checkout if `db/schema.ts` +
+ * `drizzle.config.ts` both exist. In that case, skip scaffolding.
+ */
+async function scaffoldIfNeeded(): Promise<void> {
+  const cwd = process.cwd();
+  const alreadyInCheckout =
+    existsSync(path.join(cwd, "db", "schema.ts")) &&
+    existsSync(path.join(cwd, "drizzle.config.ts"));
+  if (alreadyInCheckout) return;
+
+  const dirName = await input({
+    message: "Project directory:",
+    default: "pitos",
+    validate: (v) => {
+      const name = v.trim();
+      if (!name) return "Directory name is required.";
+      if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
+        return "Use letters, numbers, dots, hyphens, or underscores.";
+      }
+      if (existsSync(path.join(cwd, name))) {
+        return `"${name}" already exists — pick another name.`;
+      }
+      return true;
+    },
+  });
+
+  const target = path.join(cwd, dirName.trim());
+
+  process.stdout.write(`Copying files to ${dirName}/... `);
+  await cp(PKG_ROOT, target, {
+    recursive: true,
+    filter: (src) => {
+      const rel = path.relative(PKG_ROOT, src);
+      if (!rel) return true;
+      const parts = rel.split(path.sep);
+      if (SKIP_TOP_LEVEL.has(parts[0])) return false;
+      if (parts[0].endsWith(".db")) return false;
+      if (
+        parts[0] === "cli" &&
+        parts[1] === "i18n" &&
+        parts[2] === "cache" &&
+        parts.length > 3 &&
+        parts[3] !== ".gitignore"
+      ) {
+        return false;
+      }
+      return true;
+    },
+  });
+  console.log("✓");
+
+  process.chdir(target);
+
+  process.stdout.write("Installing dependencies (~30s)... ");
+  const r = spawnSync("npm", ["install", "--silent", "--no-audit", "--no-fund"], {
+    stdio: ["ignore", "ignore", "inherit"],
+  });
+  if (r.status !== 0) {
+    console.log("failed");
+    throw new Error(
+      `npm install failed. cd into "${dirName}" and run "npm install" manually, then re-run "npx pitos".`
+    );
+  }
+  console.log("✓\n");
+}
 
 const LANGUAGES = [
   { value: "en", name: "English" },
@@ -35,6 +123,9 @@ async function main() {
   console.log("  PitOS — First-run setup");
   console.log(`${bar}\n`);
   console.log("This wizard sets up your team workspace in about 2 minutes.\n");
+
+  // ── Step 0: Scaffold into a fresh dir if user ran `npx pitos` from anywhere ──
+  await scaffoldIfNeeded();
 
   // ── Step 1: Claude API key (needed before language for on-demand translation) ──
   const apiKey = await password({ message: "Claude API key (sk-ant-...):" });
