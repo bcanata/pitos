@@ -1,24 +1,37 @@
 /**
  * Cloudflare DNS + email setup helpers for the PitOS CLI.
  *
- * Uses the Global API Key (X-Auth-Email / X-Auth-Key) so it has full
- * DNS write access without requiring a custom-scoped token.
+ * Uses a scoped API Token (Bearer auth) rather than the Global API Key.
+ * Required token permissions:
+ *   - Zone:Zone:Read        (to look up zone ID by domain name)
+ *   - Zone:DNS:Edit         (to create CNAME + TXT records)
+ *   - Zone:Email Routing Rules:Read (optional, for DKIM key discovery)
+ * Scope to "All zones" or the specific zone being configured.
  */
 
 export interface CfAuth {
-  email: string;
-  key: string;
+  token: string;
 }
 
 async function cfFetch(url: string, auth: CfAuth, opts?: RequestInit): Promise<Response> {
   return fetch(url, {
     ...opts,
     headers: {
-      "X-Auth-Email": auth.email,
-      "X-Auth-Key": auth.key,
+      Authorization: `Bearer ${auth.token}`,
       "Content-Type": "application/json",
     },
   });
+}
+
+/** Verify the token is valid and has the right shape. */
+export async function verifyToken(auth: CfAuth): Promise<boolean> {
+  try {
+    const res = await cfFetch("https://api.cloudflare.com/client/v4/user/tokens/verify", auth);
+    const j = (await res.json()) as { success?: boolean };
+    return j.success === true;
+  } catch {
+    return false;
+  }
 }
 
 /** Find the Cloudflare zone ID for a domain (handles subdomains). */

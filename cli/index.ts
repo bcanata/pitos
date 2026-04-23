@@ -17,7 +17,7 @@ import {
   deployProd,
   addVercelDomain,
 } from "./deploy";
-import { findZone, setupDomainDns, type CfAuth } from "./cloudflare-setup";
+import { findZone, setupDomainDns, verifyToken, type CfAuth } from "./cloudflare-setup";
 
 const force = process.argv.includes("--force");
 const PKG_ROOT = path.join(__dirname, "..");
@@ -219,8 +219,7 @@ async function main() {
   });
 
   let customDomain = "";
-  let cfEmail = "";
-  let cfGlobalKey = "";
+  let cfApiToken = "";
 
   if (doDomain) {
     customDomain = await input({
@@ -232,15 +231,8 @@ async function main() {
     });
     customDomain = customDomain.trim().toLowerCase();
 
-    cfEmail = await input({
-      message: t("prompt_cf_email"),
-      validate: (v) =>
-        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) || t("email_invalid"),
-    });
-    cfEmail = cfEmail.trim();
-
-    cfGlobalKey = await input({ message: t("prompt_cf_global_key") });
-    cfGlobalKey = cfGlobalKey.trim();
+    cfApiToken = await input({ message: t("prompt_cf_api_token") });
+    cfApiToken = cfApiToken.trim();
 
     // Default FROM_EMAIL to noreply@{customDomain} if not already set
     if (!fromEmail && customDomain) {
@@ -323,8 +315,7 @@ async function main() {
         cloudflareEmailApiToken: written.cloudflareEmailApiToken,
         fromEmail: written.fromEmail,
         customDomain,
-        cfEmail,
-        cfGlobalKey,
+        cfApiToken,
       });
       // deploy completed — skip dev-server offer
       return;
@@ -357,8 +348,7 @@ interface DeployEnvs {
   cloudflareEmailApiToken: string;
   fromEmail: string;
   customDomain?: string;
-  cfEmail?: string;
-  cfGlobalKey?: string;
+  cfApiToken?: string;
 }
 
 async function runDeployFlow(envs: DeployEnvs): Promise<void> {
@@ -393,35 +383,41 @@ async function runDeployFlow(envs: DeployEnvs): Promise<void> {
   // 4. Custom domain setup (Cloudflare DNS + Vercel alias).
   let appUrl = deployedUrl;
 
-  if (envs.customDomain && envs.cfEmail && envs.cfGlobalKey) {
-    const auth: CfAuth = { email: envs.cfEmail, key: envs.cfGlobalKey };
+  if (envs.customDomain && envs.cfApiToken) {
+    const auth: CfAuth = { token: envs.cfApiToken };
 
-    console.log(`\n${t("domain_setup_dns")}`);
-    const zoneId = await findZone(envs.customDomain, auth);
-    if (!zoneId) {
-      console.warn(`\n  ${t("domain_zone_not_found", { domain: envs.customDomain })}`);
+    process.stdout.write("\n  Verifying Cloudflare token... ");
+    const tokenOk = await verifyToken(auth);
+    if (!tokenOk) {
+      console.warn(`✗\n  ${t("cf_token_invalid")}`);
     } else {
-      const result = await setupDomainDns(zoneId, envs.customDomain, auth);
-      const lines = [
-        `  CNAME  ${result.cname}`,
-        `  SPF    ${result.spf}`,
-        `  DKIM   ${result.dkim}`,
-      ];
-      if (result.errors.length) lines.push(...result.errors.map((e) => `  ⚠ ${e}`));
-      console.log(lines.join("\n"));
+      console.log("✓");
+      console.log(`\n${t("domain_setup_dns")}`);
+      const zoneId = await findZone(envs.customDomain, auth);
+      if (!zoneId) {
+        console.warn(`\n  ${t("domain_zone_not_found", { domain: envs.customDomain })}`);
+      } else {
+        const result = await setupDomainDns(zoneId, envs.customDomain, auth);
+        const lines = [
+          `  CNAME  ${result.cname}`,
+          `  SPF    ${result.spf}`,
+          `  DKIM   ${result.dkim}`,
+        ];
+        if (result.errors.length) lines.push(...result.errors.map((e) => `  ⚠ ${e}`));
+        console.log(lines.join("\n"));
 
-      console.log(`\n${t("domain_setup_vercel")}`);
-      try {
-        await addVercelDomain(envs.customDomain);
-        appUrl = `https://${envs.customDomain}`;
-        // Update FROM_EMAIL env if it was auto-derived
-        if (envs.fromEmail === `noreply@${envs.customDomain}`) {
-          await pushEnvVars({ FROM_EMAIL: envs.fromEmail });
+        console.log(`\n${t("domain_setup_vercel")}`);
+        try {
+          await addVercelDomain(envs.customDomain);
+          appUrl = `https://${envs.customDomain}`;
+          if (envs.fromEmail === `noreply@${envs.customDomain}`) {
+            await pushEnvVars({ FROM_EMAIL: envs.fromEmail });
+          }
+          console.log(`  ${t("domain_setup_done")}`);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`  ${t("domain_setup_failed")}\n  ${msg}`);
         }
-        console.log(`  ${t("domain_setup_done")}`);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.warn(`  ${t("domain_setup_failed")}\n  ${msg}`);
       }
     }
   }
