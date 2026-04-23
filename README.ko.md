@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/logo.png" alt="PitOS" width="260">
+</p>
+
 # PitOS
 
 FRC(FIRST Robotics Competition) 팀을 위한 AI 기반 워크스페이스. Slack 스타일의 채널, 작업 추적, 의사결정 로그, 심사 인터뷰 준비까지 — 모두 단순히 대화만 하는 게 아니라 실제로 일을 해내는 Claude 에이전트와 연결되어 있습니다.

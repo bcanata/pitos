@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/logo.png" alt="PitOS" width="260">
+</p>
+
 # PitOS
 
 An AI-powered workspace for FRC (FIRST Robotics Competition) teams. Slack-style channels, task tracking, decision logs, and judge interview prep — all wired into Claude agents that actually do work, not just chat.

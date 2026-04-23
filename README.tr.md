@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/logo.png" alt="PitOS" width="260">
+</p>
+
 # PitOS
 
 FRC (FIRST Robotics Competition) takımları için yapay zeka destekli bir çalışma alanı. Slack tarzı kanallar, görev takibi, karar kayıtları ve jüri mülakatı hazırlığı — hepsi sadece sohbet etmekle kalmayıp gerçekten iş yapan Claude ajanlarıyla entegre.
