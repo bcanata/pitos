@@ -73,6 +73,7 @@ jobs:
           echo "native=$NATIVE" >> "$GITHUB_OUTPUT"
 
       - name: Create pull request
+        id: create-pr
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -82,8 +83,19 @@ jobs:
           body: |
             Adds `README.${{ steps.translate.outputs.slug }}.md` — a machine-translated version of the README in **${{ steps.lang.outputs.name }}** (${{ steps.translate.outputs.native }}).
 
-            Translated by Claude Opus 4.7. Please review for accuracy before merging, especially FRC-specific terminology and any culturally sensitive phrasing.
+            Translated by Claude Opus 4.7.
 
             Closes #${{ github.event.issue.number }}
           labels: translation-request,documentation
           delete-branch: true
+
+      - name: Auto-merge
+        if: steps.create-pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge ${{ steps.create-pr.outputs.pull-request-number }} \
+            --repo ${{ github.repository }} \
+            --squash \
+            --admin \
+            --delete-branch
