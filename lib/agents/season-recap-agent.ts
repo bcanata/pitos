@@ -1,10 +1,14 @@
 import { anthropic } from "@/lib/anthropic";
 import { db } from "@/db";
-import { messages, decisions, tasks, extractedFacts, generatedDocuments } from "@/db/schema";
+import { messages, decisions, tasks, extractedFacts, generatedDocuments, teams } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export async function runSeasonRecap(teamId: string): Promise<string> {
+  const team = db.select().from(teams).where(eq(teams.id, teamId)).get();
+  const lang = team?.language ?? "en";
+  const langNote = lang !== "en" ? ` Respond entirely in ${lang}.` : "";
+
   // 1. Gather data
   const recentMessages = db
     .select()
@@ -91,7 +95,7 @@ export async function runSeasonRecap(teamId: string): Promise<string> {
       "3. Challenges Overcome\n" +
       "4. Team Growth & Learning\n" +
       "5. Recommendations for Next Season\n" +
-      "Be specific, cite actual events from the data, and write at least 300 words per section.",
+      `Be specific, cite actual events from the data, and write at least 300 words per section.${langNote}`,
     messages: [
       {
         role: "user",

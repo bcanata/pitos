@@ -35,6 +35,7 @@ export const teams = sqliteTable("teams", {
   school: text("school"),
   country: text("country"),
   rookieYear: integer("rookie_year"),
+  language: text("language").notNull().default("en"),
   createdByUserId: text("created_by_user_id").references(() => users.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
@@ -293,6 +294,14 @@ export const generatedDocuments = sqliteTable("generated_documents", {
   contentMd: text("content_md").notNull(),
   citations: text("citations", { mode: "json" }),
   generatedByAgentType: text("generated_by_agent_type"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+// ─── i18n Translation Cache ──────────────────────────────────────────────────
+
+export const translationCache = sqliteTable("translation_cache", {
+  lang: text("lang").primaryKey(),
+  bundle: text("bundle").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 

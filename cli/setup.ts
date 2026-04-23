@@ -10,6 +10,7 @@ interface SetupConfig {
   name: string;
   teamName: string;
   teamNumber?: number;
+  language?: string;
   appUrl: string;
 }
 
@@ -39,6 +40,7 @@ export function setupDatabase(config: SetupConfig): string {
         id: teamId,
         name: config.teamName,
         number: config.teamNumber ?? null,
+        language: config.language ?? "en",
         createdByUserId: userId,
         createdAt: now,
       })

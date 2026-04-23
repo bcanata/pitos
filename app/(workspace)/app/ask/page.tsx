@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Search } from "lucide-react";
 import Link from "next/link";
+import { useT } from "@/lib/i18n/client";
 
 interface Citation {
   messageId: string;
@@ -19,6 +20,7 @@ interface AskResult {
 }
 
 export default function AskPage() {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AskResult | null>(null);
@@ -42,14 +44,14 @@ export default function AskPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error ?? "Something went wrong");
+        setError(data.error ?? t("ask.error.generic"));
         return;
       }
 
       const data: AskResult = await res.json();
       setResult(data);
     } catch {
-      setError("Network error. Please try again.");
+      setError(t("ask.error.network"));
     } finally {
       setLoading(false);
     }
@@ -57,21 +59,17 @@ export default function AskPage() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      {/* Header */}
       <div className="border-b border-border px-6 py-4">
-        <h1 className="text-lg font-semibold">Ask PitOS</h1>
-        <p className="text-sm text-muted-foreground">
-          Search your team&apos;s history and get AI-synthesized answers with citations
-        </p>
+        <h1 className="text-lg font-semibold">{t("ask.title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("ask.description")}</p>
       </div>
 
       <div className="flex-1 px-6 py-6 max-w-3xl mx-auto w-full">
-        {/* Search form */}
         <form onSubmit={handleSubmit} className="flex gap-2 mb-8">
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g. What did we decide about the drive train?"
+            placeholder={t("ask.placeholder")}
             className="flex-1"
             disabled={loading}
           />
@@ -79,42 +77,38 @@ export default function AskPage() {
             {loading ? (
               <span className="flex items-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                Searching…
+                {t("ask.searching")}
               </span>
             ) : (
               <span className="flex items-center gap-2">
                 <Search size={16} />
-                Ask
+                {t("ask.button")}
               </span>
             )}
           </Button>
         </form>
 
-        {/* Error state */}
         {error && (
           <Card className="border-destructive/50 bg-destructive/10 mb-6">
             <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
           </Card>
         )}
 
-        {/* Result */}
         {result && (
           <div className="space-y-6">
-            {/* Answer */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Answer</CardTitle>
+                <CardTitle className="text-base">{t("ask.answer")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm leading-relaxed whitespace-pre-wrap">{result.answer}</p>
               </CardContent>
             </Card>
 
-            {/* Citations */}
             {result.citations.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-                  Sources ({result.citations.length})
+                  {t("ask.sources", { count: String(result.citations.length) })}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {result.citations.map((citation) => (
@@ -135,11 +129,10 @@ export default function AskPage() {
           </div>
         )}
 
-        {/* Empty state */}
         {!result && !loading && !error && (
           <div className="text-center py-16 text-muted-foreground">
             <Search size={48} className="mx-auto mb-4 opacity-20" />
-            <p className="text-sm">Ask anything about your team&apos;s history, decisions, or progress.</p>
+            <p className="text-sm">{t("ask.empty")}</p>
           </div>
         )}
       </div>

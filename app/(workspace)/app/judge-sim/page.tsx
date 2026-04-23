@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Gavel, RotateCcw } from "lucide-react";
+import { useT } from "@/lib/i18n/client";
 
 type Message = { role: "judge" | "team"; content: string };
 
@@ -21,6 +22,7 @@ const AWARDS = [
 type Step = "select" | "interview" | "report";
 
 export default function JudgeSimPage() {
+  const t = useT();
   const [step, setStep] = useState<Step>("select");
   const [selectedAward, setSelectedAward] = useState<string>("");
   const [sessionId, setSessionId] = useState<string>("");
@@ -50,7 +52,7 @@ export default function JudgeSimPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error ?? "Failed to start session");
+        setError(data.error ?? t("judgeSim.error.start"));
         return;
       }
 
@@ -60,7 +62,7 @@ export default function JudgeSimPage() {
       setTurnCount(0);
       setStep("interview");
     } catch {
-      setError("Network error. Please try again.");
+      setError(t("judgeSim.error.network"));
     } finally {
       setLoading(false);
     }
@@ -89,7 +91,7 @@ export default function JudgeSimPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error ?? "Something went wrong");
+        setError(data.error ?? t("judgeSim.error.submit"));
         return;
       }
 
@@ -112,7 +114,7 @@ export default function JudgeSimPage() {
         setStep("report");
       }
     } catch {
-      setError("Network error. Please try again.");
+      setError(t("judgeSim.error.network"));
     } finally {
       setLoading(false);
     }
@@ -129,18 +131,15 @@ export default function JudgeSimPage() {
     setGapReport("");
   }
 
-  // ── Step 1: Award selection ──────────────────────────────────────────────────
   if (step === "select") {
     return (
       <div className="flex flex-col h-full overflow-y-auto">
         <div className="border-b border-border px-6 py-4">
           <h1 className="text-lg font-semibold flex items-center gap-2">
             <Gavel size={20} />
-            Judge Simulator
+            {t("judgeSim.title")}
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Practice your judging interview with a skeptical AI judge. 6 rounds, then a gap report.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("judgeSim.description")}</p>
         </div>
 
         <div className="flex-1 px-6 py-8 max-w-2xl mx-auto w-full">
@@ -151,7 +150,7 @@ export default function JudgeSimPage() {
           )}
 
           <p className="text-sm font-medium mb-4 text-muted-foreground uppercase tracking-wider">
-            Select an award to practice
+            {t("judgeSim.selectPrompt")}
           </p>
 
           <div className="grid grid-cols-3 gap-2">
@@ -170,7 +169,7 @@ export default function JudgeSimPage() {
           {loading && (
             <div className="flex items-center justify-center gap-2 mt-8 text-muted-foreground text-sm">
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              Starting interview...
+              {t("judgeSim.starting")}
             </div>
           )}
         </div>
@@ -178,20 +177,18 @@ export default function JudgeSimPage() {
     );
   }
 
-  // ── Step 3: Gap report ───────────────────────────────────────────────────────
   if (step === "report") {
     return (
       <div className="flex flex-col h-full overflow-y-auto">
         <div className="border-b border-border px-6 py-4">
           <h1 className="text-lg font-semibold flex items-center gap-2">
             <Gavel size={20} />
-            Judge Simulator — {selectedAward}
+            {t("judgeSim.title")} — {selectedAward}
           </h1>
-          <p className="text-sm text-muted-foreground">Interview complete</p>
+          <p className="text-sm text-muted-foreground">{t("judgeSim.interviewComplete")}</p>
         </div>
 
         <div className="flex-1 px-6 py-8 max-w-2xl mx-auto w-full space-y-6">
-          {/* Transcript summary */}
           <div className="space-y-3">
             {messages.map((msg, i) => (
               <div
@@ -206,7 +203,7 @@ export default function JudgeSimPage() {
                   }`}
                 >
                   <p className={`text-xs font-semibold mb-1 ${msg.role === "judge" ? "text-muted-foreground" : "opacity-70"}`}>
-                    {msg.role === "judge" ? "Judge" : "You"}
+                    {msg.role === "judge" ? t("judgeSim.judge") : t("judgeSim.you")}
                   </p>
                   <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                 </div>
@@ -214,12 +211,11 @@ export default function JudgeSimPage() {
             ))}
           </div>
 
-          {/* Gap report card */}
           <Card className="border-amber-500/30 bg-amber-500/5">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2 text-amber-400">
                 <Gavel size={16} />
-                Evidence Gap Report
+                {t("judgeSim.gapReport")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -229,34 +225,31 @@ export default function JudgeSimPage() {
 
           <Button onClick={resetSession} variant="outline" className="w-full gap-2">
             <RotateCcw size={16} />
-            Start New Session
+            {t("judgeSim.startNew")}
           </Button>
         </div>
       </div>
     );
   }
 
-  // ── Step 2: Interview ────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="border-b border-border px-6 py-4 flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-lg font-semibold flex items-center gap-2">
             <Gavel size={20} />
-            Judge Simulator — {selectedAward}
+            {t("judgeSim.title")} — {selectedAward}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Turn {turnCount} / 6
+            {t("judgeSim.turn", { turn: String(turnCount) })}
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={resetSession} className="gap-1 text-muted-foreground">
           <RotateCcw size={14} />
-          Restart
+          {t("judgeSim.restart")}
         </Button>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
         {messages.map((msg, i) => (
           <div
@@ -271,7 +264,7 @@ export default function JudgeSimPage() {
               }`}
             >
               <p className={`text-xs font-semibold mb-1 ${msg.role === "judge" ? "text-muted-foreground" : "opacity-70"}`}>
-                {msg.role === "judge" ? "Judge" : "You"}
+                {msg.role === "judge" ? t("judgeSim.judge") : t("judgeSim.you")}
               </p>
               <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
             </div>
@@ -282,7 +275,7 @@ export default function JudgeSimPage() {
           <div className="flex justify-start">
             <div className="bg-muted rounded-lg px-4 py-3 text-sm text-muted-foreground flex items-center gap-2">
               <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              Judge is thinking...
+              {t("judgeSim.judgeThinking")}
             </div>
           </div>
         )}
@@ -290,14 +283,12 @@ export default function JudgeSimPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Error */}
       {error && (
         <div className="px-6 pb-2">
           <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
 
-      {/* Input */}
       <form
         onSubmit={handleRespond}
         className="border-t border-border px-6 py-4 flex gap-3 items-end shrink-0"
@@ -305,7 +296,7 @@ export default function JudgeSimPage() {
         <Textarea
           value={response}
           onChange={(e) => setResponse(e.target.value)}
-          placeholder="Type your response to the judge..."
+          placeholder={t("judgeSim.responsePlaceholder")}
           className="flex-1 min-h-[60px] max-h-40 resize-none"
           disabled={loading}
           onKeyDown={(e) => {
@@ -323,7 +314,7 @@ export default function JudgeSimPage() {
           {loading ? (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
           ) : (
-            "Respond"
+            t("judgeSim.respond")
           )}
         </Button>
       </form>

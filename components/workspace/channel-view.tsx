@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import MessageBubble from "./message-bubble";
+import { useT } from "@/lib/i18n/client";
 
 interface Message {
   id: string;
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export default function ChannelView({ channel, initialMessages }: Props) {
+  const t = useT();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -86,8 +88,8 @@ export default function ChannelView({ channel, initialMessages }: Props) {
       <ScrollArea className="flex-1 px-4 py-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-sm font-medium text-muted-foreground">No messages yet</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">Start the conversation below.</p>
+            <p className="text-sm font-medium text-muted-foreground">{t("channel.empty")}</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">{t("channel.emptyHint")}</p>
           </div>
         )}
         <div className="space-y-1.5">
@@ -103,7 +105,7 @@ export default function ChannelView({ channel, initialMessages }: Props) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Message #${channel.name}`}
+            placeholder={t("channel.messagePlaceholder", { name: channel.name })}
             rows={1}
             className="flex-1 min-h-[40px] max-h-[120px] resize-none"
             disabled={sending}
@@ -112,7 +114,7 @@ export default function ChannelView({ channel, initialMessages }: Props) {
             <Send size={16} />
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">Enter to send · Shift+Enter for newline</p>
+        <p className="text-xs text-muted-foreground mt-1">{t("channel.sendHint")}</p>
       </form>
     </div>
   );

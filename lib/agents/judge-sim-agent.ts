@@ -1,14 +1,15 @@
 import { anthropic } from "@/lib/anthropic";
 import { db } from "@/db";
-import { judgeSessions } from "@/db/schema";
+import { judgeSessions, teams } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export type JudgeSimMessage = { role: "judge" | "team"; content: string };
 
 const MAX_TURNS = 6;
 
-function buildJudgeSystemPrompt(award: string): string {
-  return `You are an FRC judge evaluating a team for the ${award} award. You are skeptical, thorough, and demand specific evidence. Ask ONE tough question at a time. Be direct and challenging. No pleasantries. Push the team to prove their claims with concrete data and specific examples.`;
+function buildJudgeSystemPrompt(award: string, lang = "en"): string {
+  const langNote = lang !== "en" ? `\n\nIMPORTANT: Respond in ${lang}.` : "";
+  return `You are an FRC judge evaluating a team for the ${award} award. You are skeptical, thorough, and demand specific evidence. Ask ONE tough question at a time. Be direct and challenging. No pleasantries. Push the team to prove their claims with concrete data and specific examples.${langNote}`;
 }
 
 export async function startJudgeSim(
@@ -17,11 +18,13 @@ export async function startJudgeSim(
   award: string
 ): Promise<{ sessionId: string; firstQuestion: string }> {
   const sessionId = crypto.randomUUID();
+  const team = db.select().from(teams).where(eq(teams.id, teamId)).get();
+  const lang = team?.language ?? "en";
 
   const result = await anthropic.messages.create({
     model: "claude-opus-4-7",
     max_tokens: 512,
-    system: buildJudgeSystemPrompt(award),
+    system: buildJudgeSystemPrompt(award, lang),
     messages: [
       {
         role: "user",
@@ -88,10 +91,11 @@ export async function continueJudgeSim(
       }
     }
 
+    const sessionTeam = db.select().from(teams).where(eq(teams.id, session.teamId ?? "")).get();
     const result = await anthropic.messages.create({
       model: "claude-opus-4-7",
       max_tokens: 512,
-      system: buildJudgeSystemPrompt(session.awardType),
+      system: buildJudgeSystemPrompt(session.awardType, sessionTeam?.language ?? "en"),
       messages: claudeMessages,
     });
 

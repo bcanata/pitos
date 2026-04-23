@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { MessageSquare, MinusCircle, PlusSquare } from "lucide-react";
+import { useT } from "@/lib/i18n/client";
 
 interface AgentRun {
   id: string;
@@ -79,11 +80,13 @@ function RunRow({ run }: { run: AgentRun }) {
   const reasoning = parseReasoning(run);
   const taskTitle = action === "create_task" ? parseTaskTitle(run) : null;
 
+  const t = useT();
+
   if (action === "no_action") {
     return (
       <div className="flex items-center gap-2 px-3 py-1.5 text-muted-foreground/60">
         <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
-        <span className="text-xs">no action</span>
+        <span className="text-xs">{t("agentActivity.noAction")}</span>
         <span className="text-xs ml-auto opacity-60">{formatTime(run.createdAt)}</span>
       </div>
     );
@@ -116,7 +119,7 @@ function RunRow({ run }: { run: AgentRun }) {
         <span className="ml-auto text-muted-foreground/60">{formatTime(run.createdAt)}</span>
       </div>
       {taskTitle && (
-        <p className="text-amber-300/80 truncate pl-0.5">"{taskTitle}"</p>
+        <p className="text-amber-300/80 truncate pl-0.5">&ldquo;{taskTitle}&rdquo;</p>
       )}
       {reasoning && action !== "create_task" && (
         <p className="text-muted-foreground/70 leading-snug line-clamp-2 pl-0.5">
@@ -128,6 +131,7 @@ function RunRow({ run }: { run: AgentRun }) {
 }
 
 export default function AgentActivity({ channelId }: Props) {
+  const t = useT();
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -152,15 +156,15 @@ export default function AgentActivity({ channelId }: Props) {
     <div className="flex flex-col min-h-0">
       <div className="px-3 py-2 border-b border-border">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          Agent Activity
+          {t("agentActivity.title")}
         </p>
       </div>
       <div className="flex-1 overflow-y-auto">
         {loading && (
-          <p className="px-3 py-3 text-xs text-muted-foreground">Loading…</p>
+          <p className="px-3 py-3 text-xs text-muted-foreground">{t("agentActivity.loading")}</p>
         )}
         {!loading && runs.length === 0 && (
-          <p className="px-3 py-3 text-xs text-muted-foreground">No runs yet.</p>
+          <p className="px-3 py-3 text-xs text-muted-foreground">{t("agentActivity.empty")}</p>
         )}
         {runs.map((run) => (
           <RunRow key={run.id} run={run} />

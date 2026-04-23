@@ -153,11 +153,13 @@ async function main() {
     choices: LANGUAGES,
   });
 
+  let effectiveLang = langCode;
   if (langCode === "other") {
     const langName = await input({
       message: "Enter your language (e.g. Korean, Arabic, Farsi):",
       validate: (v) => v.trim().length > 0 || "Please enter a language name.",
     });
+    effectiveLang = langName.trim().toLowerCase();
     process.stdout.write(`\nTranslating PitOS to ${langName}... `);
     const bundle = await translateBundle(langName, apiKey);
     if (bundle) {
@@ -251,6 +253,7 @@ async function main() {
     name: adminName,
     teamName,
     teamNumber,
+    language: effectiveLang,
     appUrl: "http://localhost:3000",
   });
   console.log("✓");

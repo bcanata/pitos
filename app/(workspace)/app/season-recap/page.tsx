@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n/client";
 
 interface GeneratedDocument {
   id: string;
@@ -20,7 +21,6 @@ function RecapContent({ content }: { content: string }) {
         const trimmed = para.trim();
         if (!trimmed) return null;
 
-        // Detect numbered section headers like "1." or "1." at line start
         const isSection = /^\d+\.\s+\S/.test(trimmed) && trimmed.split("\n").length === 1;
 
         if (isSection) {
@@ -42,6 +42,7 @@ function RecapContent({ content }: { content: string }) {
 }
 
 export default function SeasonRecapPage() {
+  const t = useT();
   const [document, setDocument] = useState<GeneratedDocument | null>(null);
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -91,13 +92,13 @@ export default function SeasonRecapPage() {
       const res = await fetch("/api/season-recap", { method: "POST" });
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error ?? "Failed to start generation.");
+        setError(data.error ?? t("seasonRecap.error.start"));
         setGenerating(false);
         return;
       }
       startPolling();
     } catch {
-      setError("Failed to start generation.");
+      setError(t("seasonRecap.error.start"));
       setGenerating(false);
     }
   }
@@ -110,7 +111,7 @@ export default function SeasonRecapPage() {
   if (loading) {
     return (
       <div className="p-6">
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">{t("seasonRecap.loading")}</p>
       </div>
     );
   }
@@ -118,9 +119,9 @@ export default function SeasonRecapPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Season Recap</h1>
+        <h1 className="text-xl font-semibold">{t("seasonRecap.title")}</h1>
         <Button onClick={handleGenerate} disabled={generating}>
-          {generating ? "Generating…" : "Generate Season Recap"}
+          {generating ? t("seasonRecap.generating") : t("seasonRecap.generate")}
         </Button>
       </div>
 
@@ -130,9 +131,7 @@ export default function SeasonRecapPage() {
             <div className="flex justify-center">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
-            <p className="text-sm text-muted-foreground">
-              Generating… this takes about 30 seconds.
-            </p>
+            <p className="text-sm text-muted-foreground">{t("seasonRecap.generatingHint")}</p>
           </CardContent>
         </Card>
       )}
@@ -152,10 +151,8 @@ export default function SeasonRecapPage() {
       ) : !generating ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-sm font-medium text-muted-foreground">No season recap yet</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">
-              Click &ldquo;Generate Season Recap&rdquo; to create one from your channel history.
-            </p>
+            <p className="text-sm font-medium text-muted-foreground">{t("seasonRecap.empty")}</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">{t("seasonRecap.emptyHint")}</p>
           </CardContent>
         </Card>
       ) : null}

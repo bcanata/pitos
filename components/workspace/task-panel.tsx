@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle, Clock, AlertCircle, BookOpen, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 interface Task {
   id: string;
@@ -21,38 +22,42 @@ interface Props {
   channelId: string;
 }
 
-const STATUS_CONFIG: Record<
-  Task["status"],
-  { label: string; icon: React.ReactNode; className: string }
-> = {
+type StatusConfig = {
+  labelKey: string;
+  icon: React.ReactNode;
+  className: string;
+};
+
+const STATUS_CONFIG: Record<Task["status"], StatusConfig> = {
   open: {
-    label: "Open",
+    labelKey: "tasks.status.open",
     icon: <Clock size={12} />,
     className: "bg-muted text-muted-foreground",
   },
   in_progress: {
-    label: "In Progress",
+    labelKey: "tasks.status.inProgress",
     icon: <Clock size={12} />,
     className: "bg-primary/20 text-primary",
   },
   done: {
-    label: "Done",
+    labelKey: "tasks.status.done",
     icon: <CheckCircle size={12} />,
     className: "bg-green-500/20 text-green-400",
   },
   blocked: {
-    label: "Blocked",
+    labelKey: "tasks.status.blocked",
     icon: <AlertCircle size={12} />,
     className: "bg-destructive/20 text-destructive",
   },
   cancelled: {
-    label: "Cancelled",
+    labelKey: "tasks.status.cancelled",
     icon: <XCircle size={12} />,
     className: "bg-muted text-muted-foreground line-through",
   },
 };
 
 export default function TaskPanel({ channelId }: Props) {
+  const t = useT();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [markingDone, setMarkingDone] = useState<string | null>(null);
@@ -62,10 +67,9 @@ export default function TaskPanel({ channelId }: Props) {
       const res = await fetch("/api/tasks");
       if (!res.ok) return;
       const data = await res.json();
-      // Filter to channel-level tasks (or show all team tasks if no channelId match)
       const all: Task[] = data.tasks ?? [];
       const channelTasks = all.filter(
-        (t) => t.channelId === channelId || t.channelId === null
+        (task) => task.channelId === channelId || task.channelId === null
       );
       setTasks(channelTasks.length > 0 ? channelTasks : all);
     } finally {
@@ -87,7 +91,7 @@ export default function TaskPanel({ channelId }: Props) {
       });
       if (res.ok) {
         setTasks((prev) =>
-          prev.map((t) => (t.id === taskId ? { ...t, status: "done" } : t))
+          prev.map((task) => (task.id === taskId ? { ...task, status: "done" } : task))
         );
       }
     } finally {
@@ -96,19 +100,19 @@ export default function TaskPanel({ channelId }: Props) {
   }
 
   const activeTasks = tasks.filter(
-    (t) => t.status !== "done" && t.status !== "cancelled"
+    (task) => task.status !== "done" && task.status !== "cancelled"
   );
-  const doneTasks = tasks.filter((t) => t.status === "done");
+  const doneTasks = tasks.filter((task) => task.status === "done");
 
   if (loading) {
     return (
-      <div className="p-4 text-sm text-muted-foreground">Loading tasks…</div>
+      <div className="p-4 text-sm text-muted-foreground">{t("tasks.loading")}</div>
     );
   }
 
   if (tasks.length === 0) {
     return (
-      <div className="p-4 text-sm text-muted-foreground">No tasks yet.</div>
+      <div className="p-4 text-sm text-muted-foreground">{t("tasks.empty")}</div>
     );
   }
 
@@ -116,11 +120,10 @@ export default function TaskPanel({ channelId }: Props) {
     <Card className="border-0 rounded-none h-full overflow-y-auto">
       <CardHeader className="py-3 px-4 border-b border-border">
         <CardTitle className="text-sm font-medium">
-          Tasks ({activeTasks.length} active)
+          {t("tasks.title", { count: String(activeTasks.length) })}
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        {/* Active tasks */}
         {activeTasks.map((task) => (
           <TaskRow
             key={task.id}
@@ -130,11 +133,10 @@ export default function TaskPanel({ channelId }: Props) {
           />
         ))}
 
-        {/* Done tasks (collapsed-ish) */}
         {doneTasks.length > 0 && (
           <>
             <div className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider border-t border-border">
-              Completed ({doneTasks.length})
+              {t("tasks.doneSection", { count: String(doneTasks.length) })}
             </div>
             {doneTasks.map((task) => (
               <TaskRow key={task.id} task={task} />
@@ -155,6 +157,7 @@ function TaskRow({
   onMarkDone?: (id: string) => void;
   isMarkingDone?: boolean;
 }) {
+  const t = useT();
   const config = STATUS_CONFIG[task.status];
   const canMarkDone = task.status === "open" || task.status === "in_progress";
 
@@ -171,7 +174,6 @@ function TaskRow({
           {task.title}
         </p>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
-          {/* Status badge */}
           <span
             className={cn(
               "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium",
@@ -179,19 +181,17 @@ function TaskRow({
             )}
           >
             {config.icon}
-            {config.label}
+            {t(config.labelKey)}
           </span>
-          {/* Assignee */}
           {task.assigneeName && (
             <span className="text-xs text-muted-foreground">
               → {task.assigneeName}
             </span>
           )}
-          {/* Teach mode indicator */}
           {task.teachMode && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-500/20 text-amber-400">
               <BookOpen size={10} />
-              Teach
+              {t("tasks.teachMode")}
             </span>
           )}
         </div>
@@ -207,7 +207,7 @@ function TaskRow({
           {isMarkingDone ? (
             <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
           ) : (
-            "Done"
+            t("tasks.markDone")
           )}
         </Button>
       )}

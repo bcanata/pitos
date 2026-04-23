@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import { db } from "@/db";
-import { memberships, users, invites } from "@/db/schema";
+import { memberships, users, invites, teams } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { getSession } from "@/lib/session";
+import { getTeamBundle } from "@/lib/i18n/server";
+import { t } from "@/lib/i18n/index";
 import InviteForm from "@/components/workspace/invite-form";
+import LanguageSettings from "@/components/workspace/language-settings";
 
 export default async function SettingsPage() {
   const { user } = await getSession();
@@ -18,7 +20,14 @@ export default async function SettingsPage() {
 
   if (!membership) redirect("/onboarding");
 
-  // Fetch all team memberships with user info
+  const team = db
+    .select()
+    .from(teams)
+    .where(eq(teams.id, membership.teamId))
+    .get();
+
+  const { bundle } = await getTeamBundle(user.id);
+
   const teamMemberships = db
     .select({
       membershipId: memberships.id,
@@ -34,7 +43,6 @@ export default async function SettingsPage() {
     .where(eq(memberships.teamId, membership.teamId))
     .all();
 
-  // Fetch pending invites
   const pendingInvites = db
     .select()
     .from(invites)
@@ -49,13 +57,14 @@ export default async function SettingsPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-8">
-      <h1 className="text-xl font-semibold">Settings</h1>
+      <h1 className="text-xl font-semibold">{t(bundle, "settings.title")}</h1>
 
-      {/* Team Members */}
       <section className="space-y-3">
-        <h2 className="text-base font-medium border-b border-border pb-2">Team Members</h2>
+        <h2 className="text-base font-medium border-b border-border pb-2">
+          {t(bundle, "settings.teamMembers")}
+        </h2>
         {teamMemberships.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No members found.</p>
+          <p className="text-sm text-muted-foreground">{t(bundle, "settings.noMembers")}</p>
         ) : (
           <ul className="space-y-2">
             {teamMemberships.map((m) => (
@@ -79,10 +88,21 @@ export default async function SettingsPage() {
         )}
       </section>
 
-      {/* Invite Member */}
       <section className="space-y-3">
-        <h2 className="text-base font-medium border-b border-border pb-2">Invite Member</h2>
+        <h2 className="text-base font-medium border-b border-border pb-2">
+          {t(bundle, "settings.inviteMember")}
+        </h2>
         <InviteForm initialPending={serializedInvites} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-base font-medium border-b border-border pb-2">
+          {t(bundle, "settings.language")}
+        </h2>
+        <LanguageSettings
+          teamId={team?.id ?? ""}
+          currentLang={team?.language ?? "en"}
+        />
       </section>
     </div>
   );

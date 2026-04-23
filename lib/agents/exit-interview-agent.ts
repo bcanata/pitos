@@ -1,13 +1,17 @@
 import { anthropic } from "@/lib/anthropic";
 import { db } from "@/db";
-import { exitPacks } from "@/db/schema";
+import { exitPacks, teams } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
-const SYSTEM_PROMPT =
-  "You are extracting institutional knowledge from a departing FRC team member. " +
-  "Ask ONE question to start uncovering knowledge that would be lost when they leave. " +
-  "Focus on undocumented processes, hard-learned lessons, or team-specific know-how.";
+function buildSystemPrompt(lang = "en"): string {
+  const langNote = lang !== "en" ? ` Respond in ${lang}.` : "";
+  return (
+    "You are extracting institutional knowledge from a departing FRC team member. " +
+    "Ask ONE question to start uncovering knowledge that would be lost when they leave. " +
+    `Focus on undocumented processes, hard-learned lessons, or team-specific know-how.${langNote}`
+  );
+}
 
 const MAX_TURNS = 5;
 
@@ -16,6 +20,8 @@ export async function startExitInterview(
   teamId: string
 ): Promise<{ packId: string; firstQuestion: string }> {
   const packId = randomUUID();
+  const team = db.select().from(teams).where(eq(teams.id, teamId)).get();
+  const lang = team?.language ?? "en";
 
   // Create the exit pack row
   db.insert(exitPacks)
@@ -33,7 +39,7 @@ export async function startExitInterview(
   const response = await anthropic.messages.create({
     model: "claude-opus-4-7",
     max_tokens: 512,
-    system: SYSTEM_PROMPT,
+    system: buildSystemPrompt(lang),
     messages: [{ role: "user", content: "Begin the exit interview." }],
   });
 
@@ -90,10 +96,11 @@ export async function continueExitInterview(
   conversationMessages.push({ role: "assistant", content: lastQuestion });
   conversationMessages.push({ role: "user", content: answer });
 
+  const packTeam = db.select().from(teams).where(eq(teams.id, pack.teamId)).get();
   const response = await anthropic.messages.create({
     model: "claude-opus-4-7",
     max_tokens: 512,
-    system: SYSTEM_PROMPT,
+    system: buildSystemPrompt(packTeam?.language ?? "en"),
     messages: conversationMessages,
   });
 

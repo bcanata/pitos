@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "@/lib/i18n/client";
 
 interface PendingInvite {
   id: string;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function InviteForm({ initialPending }: Props) {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -32,12 +34,11 @@ export default function InviteForm({ initialPending }: Props) {
       const data = await res.json();
       if (!res.ok) {
         setStatus("error");
-        setErrorMsg(data.error ?? "Failed to send invite");
+        setErrorMsg(data.error ?? t("invite.error.default"));
         return;
       }
       setStatus("success");
       setEmail("");
-      // Refresh pending list
       const listRes = await fetch("/api/invites");
       if (listRes.ok) {
         const listData = await listRes.json();
@@ -45,7 +46,7 @@ export default function InviteForm({ initialPending }: Props) {
       }
     } catch {
       setStatus("error");
-      setErrorMsg("Network error — please try again");
+      setErrorMsg(t("invite.error.network"));
     }
   }
 
@@ -65,12 +66,12 @@ export default function InviteForm({ initialPending }: Props) {
           disabled={status === "loading"}
           className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
         >
-          {status === "loading" ? "Sending…" : "Send Invite"}
+          {status === "loading" ? t("invite.sending") : t("invite.send")}
         </button>
       </form>
 
       {status === "success" && (
-        <p className="text-sm text-green-600">Invite sent!</p>
+        <p className="text-sm text-green-600">{t("invite.success")}</p>
       )}
       {status === "error" && (
         <p className="text-sm text-destructive">{errorMsg}</p>
@@ -79,7 +80,7 @@ export default function InviteForm({ initialPending }: Props) {
       {pending.length > 0 && (
         <div>
           <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Pending invites
+            {t("invite.pendingTitle")}
           </p>
           <ul className="space-y-1">
             {pending.map((inv) => (
@@ -87,8 +88,10 @@ export default function InviteForm({ initialPending }: Props) {
                 <span>{inv.email}</span>
                 <span className="text-xs text-muted-foreground">
                   {inv.expiresAt
-                    ? `Expires ${new Date(inv.expiresAt).toLocaleDateString()}`
-                    : "No expiry"}
+                    ? t("invite.expires", {
+                        date: new Date(inv.expiresAt).toLocaleDateString(),
+                      })
+                    : t("invite.noExpiry")}
                 </span>
               </li>
             ))}

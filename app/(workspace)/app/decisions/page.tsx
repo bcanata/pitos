@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n/client";
 
 interface Decision {
   id: string;
@@ -16,6 +17,7 @@ interface Decision {
 }
 
 export default function DecisionsPage() {
+  const t = useT();
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -32,14 +34,16 @@ export default function DecisionsPage() {
       const data = await res.json();
       setDecisions(data.decisions ?? []);
     } catch {
-      setError("Failed to load decisions.");
+      setError(t("decisions.error.load"));
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadDecisions();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadDecisions();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -62,7 +66,7 @@ export default function DecisionsPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error ?? "Failed to record decision.");
+        setError(data.error ?? t("decisions.error.record"));
         return;
       }
 
@@ -72,7 +76,7 @@ export default function DecisionsPage() {
       setContext("");
       await loadDecisions();
     } catch {
-      setError("Failed to record decision.");
+      setError(t("decisions.error.record"));
     } finally {
       setSubmitting(false);
     }
@@ -86,74 +90,72 @@ export default function DecisionsPage() {
   return (
     <div className="flex flex-col h-full overflow-y-auto">
     <div className="border-b border-border px-6 py-4">
-      <h1 className="text-lg font-semibold">Decisions</h1>
-      <p className="text-sm text-muted-foreground">Record and review key team decisions with rationale.</p>
+      <h1 className="text-lg font-semibold">{t("decisions.title")}</h1>
+      <p className="text-sm text-muted-foreground">{t("decisions.description")}</p>
     </div>
     <div className="p-6 max-w-3xl mx-auto w-full space-y-8">
-      {/* Record a Decision */}
       <Card>
         <CardHeader>
-          <CardTitle>Record a Decision</CardTitle>
+          <CardTitle>{t("decisions.recordCard")}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label htmlFor="title" className="text-sm font-medium">Decision Title</label>
+              <label htmlFor="title" className="text-sm font-medium">{t("decisions.labelTitle")}</label>
               <Input
                 id="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="What was decided?"
+                placeholder={t("decisions.titlePlaceholder")}
                 required
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="rationale" className="text-sm font-medium">Rationale</label>
+              <label htmlFor="rationale" className="text-sm font-medium">{t("decisions.labelRationale")}</label>
               <Textarea
                 id="rationale"
                 value={rationale}
                 onChange={(e) => setRationale(e.target.value)}
-                placeholder="Why did you make this choice?"
+                placeholder={t("decisions.rationalePlaceholder")}
                 rows={3}
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="alternatives" className="text-sm font-medium">Alternatives Considered</label>
+              <label htmlFor="alternatives" className="text-sm font-medium">{t("decisions.labelAlternatives")}</label>
               <Textarea
                 id="alternatives"
                 value={alternatives}
                 onChange={(e) => setAlternatives(e.target.value)}
-                placeholder="What else did you consider?"
+                placeholder={t("decisions.alternativesPlaceholder")}
                 rows={3}
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="context" className="text-sm font-medium">Context at the Time</label>
+              <label htmlFor="context" className="text-sm font-medium">{t("decisions.labelContext")}</label>
               <Textarea
                 id="context"
                 value={context}
                 onChange={(e) => setContext(e.target.value)}
-                placeholder="What was happening at the time?"
+                placeholder={t("decisions.contextPlaceholder")}
                 rows={3}
               />
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" disabled={submitting || !title.trim()}>
-              {submitting ? "Recording…" : "Record Decision"}
+              {submitting ? t("decisions.recording") : t("decisions.record")}
             </Button>
           </form>
         </CardContent>
       </Card>
 
-      {/* Decision Log */}
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Decision Log</h2>
+        <h2 className="text-lg font-semibold">{t("decisions.log")}</h2>
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{t("decisions.loading")}</p>
         ) : decisions.length === 0 ? (
           <div className="rounded-lg border border-border bg-card py-10 text-center">
-            <p className="text-sm font-medium text-muted-foreground">No decisions recorded yet</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">Use the form above to log your first decision.</p>
+            <p className="text-sm font-medium text-muted-foreground">{t("decisions.empty")}</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">{t("decisions.emptyHint")}</p>
           </div>
         ) : (
           decisions.map((d) => (
@@ -165,19 +167,19 @@ export default function DecisionsPage() {
               <CardContent className="space-y-3 text-sm">
                 {d.rationale && (
                   <div>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Rationale</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">{t("decisions.sectionRationale")}</p>
                     <p className="text-foreground/90 leading-relaxed">{d.rationale}</p>
                   </div>
                 )}
                 {d.alternativesConsidered && (
                   <div>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Alternatives Considered</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">{t("decisions.sectionAlternatives")}</p>
                     <p className="italic text-muted-foreground leading-relaxed">{d.alternativesConsidered}</p>
                   </div>
                 )}
                 {d.contextAtTime && (
                   <div>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Context</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">{t("decisions.sectionContext")}</p>
                     <p className="text-foreground/80 leading-relaxed">{d.contextAtTime}</p>
                   </div>
                 )}

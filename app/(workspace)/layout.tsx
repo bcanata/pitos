@@ -4,6 +4,8 @@ import { lucia } from "@/lib/auth";
 import { db } from "@/db";
 import { memberships, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getTeamBundle } from "@/lib/i18n/server";
+import { I18nProvider } from "@/lib/i18n/client";
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
@@ -24,5 +26,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
 
   if (!membership) redirect("/onboarding");
 
-  return <>{children}</>;
+  const { bundle } = await getTeamBundle(user.id);
+
+  return <I18nProvider bundle={bundle}>{children}</I18nProvider>;
 }

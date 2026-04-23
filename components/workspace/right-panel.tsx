@@ -4,12 +4,14 @@ import { useState } from "react";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import TaskPanel from "./task-panel";
 import AgentActivity from "./agent-activity";
+import { useT } from "@/lib/i18n/client";
 
 interface Props {
   channelId: string;
 }
 
 export default function RightPanel({ channelId }: Props) {
+  const t = useT();
   const [expanded, setExpanded] = useState(true);
 
   return (
@@ -19,7 +21,7 @@ export default function RightPanel({ channelId }: Props) {
         <button
           onClick={() => setExpanded((v) => !v)}
           className="flex items-center justify-center w-5 h-10 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          aria-label={expanded ? "Collapse right panel" : "Expand right panel"}
+          aria-label={expanded ? t("rightPanel.collapse") : t("rightPanel.expand")}
         >
           {expanded ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>

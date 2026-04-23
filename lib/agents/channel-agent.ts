@@ -42,6 +42,7 @@ export async function runChannelAgent({ channelId, messageId, teamId }: ChannelA
     `[${m.agentGenerated ? "PitOS" : "user"}] ${m.content}`
   ).join("\n");
 
+  const lang = team.language ?? "en";
   const systemPrompt = `You are a team member of ${team.name}, present in channel #${channel.name}.
 
 You are not a helpful assistant. You are the team's jury rehearsal partner. Your job is to notice when the team makes claims without evidence, makes decisions without recording the rationale, or when a student needs to be taught rather than given an answer.
@@ -63,7 +64,7 @@ Respond with a JSON object:
   "task_assignee": "person's name (if action is create_task, optional)",
   "task_teach_mode": false,
   "reasoning": "brief internal note on why you chose this action"
-}`;
+}${lang !== "en" ? `\n\nIMPORTANT: When you respond (action: "respond"), write the "response" field in ${lang}. Keep the JSON structure and other fields in English.` : ""}`;
 
   const userMessage = `Recent conversation in #${channel.name}:\n${contextLines}\n\nLatest message: "${triggerMessage.content}"\n\nWhat do you do?`;
 

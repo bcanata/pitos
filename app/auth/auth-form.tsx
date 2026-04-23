@@ -10,19 +10,18 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { I18nProvider, useT } from "@/lib/i18n/client";
+import type { Bundle } from "@/lib/i18n/index";
 
 type Status = "idle" | "loading" | "sent";
 
-const ERROR_MESSAGES: Record<string, string> = {
-  invalid: "This link has expired or already been used.",
-  session: "Something went wrong. Please try again.",
-};
-
 interface Props {
   error?: string;
+  bundle: Bundle;
 }
 
-export default function AuthForm({ error }: Props) {
+function AuthFormInner({ error }: { error?: string }) {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>("idle");
 
@@ -41,23 +40,28 @@ export default function AuthForm({ error }: Props) {
     }
   }
 
-  const errorMessage = error ? (ERROR_MESSAGES[error] ?? "An error occurred. Please try again.") : null;
+  const ERROR_MESSAGES: Record<string, string> = {
+    invalid: t("auth.error.invalid"),
+    session: t("auth.error.session"),
+  };
+
+  const errorMessage = error
+    ? (ERROR_MESSAGES[error] ?? t("auth.error.generic"))
+    : null;
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-4 bg-background">
       {/* Wordmark */}
       <div className="text-center">
         <p className="text-4xl font-bold tracking-tight text-primary">PitOS</p>
-        <p className="text-sm text-muted-foreground mt-1">Jury rehearsal partner for FRC teams</p>
+        <p className="text-sm text-muted-foreground mt-1">{t("auth.tagline")}</p>
       </div>
 
       {/* Card */}
       <Card className="w-full max-w-sm">
         <CardHeader className="pb-4">
-          <CardTitle>Sign in</CardTitle>
-          <CardDescription>
-            Enter your email and we&apos;ll send you a magic link.
-          </CardDescription>
+          <CardTitle>{t("auth.signIn")}</CardTitle>
+          <CardDescription>{t("auth.cardDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {errorMessage && (
@@ -67,25 +71,33 @@ export default function AuthForm({ error }: Props) {
           )}
           {status === "sent" ? (
             <p className="text-sm text-center text-muted-foreground py-2">
-              Check your email &mdash; or your server console in dev mode.
+              {t("auth.checkEmail")}
             </p>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               <Input
                 type="email"
-                placeholder="you@example.com"
+                placeholder={t("auth.emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={status === "loading"}
               />
               <Button type="submit" disabled={status === "loading"}>
-                {status === "loading" ? "Sending…" : "Send magic link"}
+                {status === "loading" ? t("auth.sending") : t("auth.sendMagicLink")}
               </Button>
             </form>
           )}
         </CardContent>
       </Card>
     </main>
+  );
+}
+
+export default function AuthForm({ error, bundle }: Props) {
+  return (
+    <I18nProvider bundle={bundle}>
+      <AuthFormInner error={error} />
+    </I18nProvider>
   );
 }

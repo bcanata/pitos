@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n/client";
 
 type Phase = "idle" | "interviewing" | "complete";
 
@@ -14,6 +15,7 @@ interface InterviewState {
 }
 
 export default function ExitInterviewPage() {
+  const t = useT();
   const [phase, setPhase] = useState<Phase>("idle");
   const [interview, setInterview] = useState<InterviewState | null>(null);
   const [answer, setAnswer] = useState("");
@@ -27,14 +29,14 @@ export default function ExitInterviewPage() {
       const res = await fetch("/api/exit-interview", { method: "POST" });
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error ?? "Failed to start interview.");
+        setError(data.error ?? t("exitInterview.error.start"));
         return;
       }
       const data = await res.json() as { packId: string; firstQuestion: string };
       setInterview({ packId: data.packId, currentQuestion: data.firstQuestion, turnsCompleted: 0 });
       setPhase("interviewing");
     } catch {
-      setError("Failed to start interview.");
+      setError(t("exitInterview.error.start"));
     } finally {
       setLoading(false);
     }
@@ -55,7 +57,7 @@ export default function ExitInterviewPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error ?? "Failed to submit answer.");
+        setError(data.error ?? t("exitInterview.error.submit"));
         return;
       }
 
@@ -72,7 +74,7 @@ export default function ExitInterviewPage() {
         });
       }
     } catch {
-      setError("Failed to submit answer.");
+      setError(t("exitInterview.error.submit"));
     } finally {
       setLoading(false);
     }
@@ -83,11 +85,11 @@ export default function ExitInterviewPage() {
       <div className="p-6 max-w-2xl mx-auto flex items-center justify-center min-h-[50vh]">
         <Card className="w-full">
           <CardHeader>
-            <CardTitle className="text-center text-xl">Knowledge Captured</CardTitle>
+            <CardTitle className="text-center text-xl">{t("exitInterview.complete")}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-center text-muted-foreground">
-              Thank you for sharing your expertise with the team. Your knowledge has been recorded.
+              {t("exitInterview.completeMessage")}
             </p>
           </CardContent>
         </Card>
@@ -99,15 +101,15 @@ export default function ExitInterviewPage() {
     return (
       <div className="p-6 max-w-2xl mx-auto space-y-6">
         <div>
-          <h1 className="text-xl font-semibold">Exit Interview</h1>
+          <h1 className="text-xl font-semibold">{t("exitInterview.title")}</h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Turn {interview.turnsCompleted + 1} of 5
+            {t("exitInterview.turn", { turn: String(interview.turnsCompleted + 1) })}
           </p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-medium">Question</CardTitle>
+            <CardTitle className="text-base font-medium">{t("exitInterview.question")}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm leading-relaxed">{interview.currentQuestion}</p>
@@ -118,13 +120,13 @@ export default function ExitInterviewPage() {
           <Textarea
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
-            placeholder="Share your answer here…"
+            placeholder={t("exitInterview.answerPlaceholder")}
             rows={6}
             required
           />
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" disabled={loading || !answer.trim()}>
-            {loading ? "Submitting…" : "Submit Answer"}
+            {loading ? t("exitInterview.submitting") : t("exitInterview.submit")}
           </Button>
         </form>
       </div>
@@ -135,17 +137,15 @@ export default function ExitInterviewPage() {
     <div className="p-6 max-w-2xl mx-auto flex items-center justify-center min-h-[50vh]">
       <Card className="w-full">
         <CardHeader>
-          <CardTitle>Exit Interview</CardTitle>
+          <CardTitle>{t("exitInterview.title")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            The exit interview helps capture knowledge that would otherwise be lost when a team member
-            graduates. You will be asked 5 questions about processes, lessons, and team-specific
-            know-how.
+            {t("exitInterview.description")}
           </p>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button onClick={handleBegin} disabled={loading}>
-            {loading ? "Starting…" : "Begin Exit Interview"}
+            {loading ? t("exitInterview.starting") : t("exitInterview.begin")}
           </Button>
         </CardContent>
       </Card>
