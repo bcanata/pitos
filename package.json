@@ -53,7 +53,8 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "setup": "tsx cli/index.ts",
-    "mcp": "tsx mcp/server.ts"
+    "mcp": "tsx mcp/server.ts",
+    "translate:readme": "tsx scripts/translate-readme.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",

@@ -1,0 +1,89 @@
+name: Translate README
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  translate:
+    # Only fire when the translation-request label is applied by the repo owner
+    if: github.event.label.name == 'translation-request' && github.event.sender.login == github.repository_owner
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Extract language from issue body
+        id: lang
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          # Read from env var (never from inline expansion) to block injection.
+          # Template section heading is "### Language name" — grab the first
+          # non-empty, non-comment, non-heading line after it.
+          LANG_NAME=$(printf '%s' "$ISSUE_BODY" \
+            | grep -A5 "Language name" \
+            | grep -v '<!--' \
+            | grep -v '^###' \
+            | grep -v '^$' \
+            | head -1 \
+            | tr -d '\r\n' \
+            | sed 's/[^A-Za-z0-9 \-]//g' \
+            | head -c 60)
+
+          if [ -z "$LANG_NAME" ]; then
+            echo "::error::Could not extract language name from issue body."
+            echo "Raw body: $ISSUE_BODY"
+            exit 1
+          fi
+
+          echo "Extracted language: $LANG_NAME"
+          echo "name=$LANG_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Translate README via Claude
+        id: translate
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LANG_NAME: ${{ steps.lang.outputs.name }}
+        run: |
+          OUTPUT=$(npx tsx scripts/translate-readme.ts "$LANG_NAME" 2>&1)
+          echo "$OUTPUT"
+
+          SLUG=$(echo "$OUTPUT" | grep '^SLUG_OUTPUT=' | cut -d= -f2 | tr -d '\r\n')
+          NATIVE=$(echo "$OUTPUT" | grep '^NATIVE_OUTPUT=' | cut -d= -f2- | tr -d '\r\n')
+
+          if [ -z "$SLUG" ]; then
+            echo "::error::Script did not emit SLUG_OUTPUT — translation may have failed."
+            exit 1
+          fi
+
+          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
+          echo "native=$NATIVE" >> "$GITHUB_OUTPUT"
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: translate/readme-${{ steps.translate.outputs.slug }}
+          commit-message: "docs: translate README to ${{ steps.lang.outputs.name }}"
+          title: "Translate README to ${{ steps.lang.outputs.name }}"
+          body: |
+            Adds `README.${{ steps.translate.outputs.slug }}.md` — a machine-translated version of the README in **${{ steps.lang.outputs.name }}** (${{ steps.translate.outputs.native }}).
+
+            Translated by Claude Opus 4.7. Please review for accuracy before merging, especially FRC-specific terminology and any culturally sensitive phrasing.
+
+            Closes #${{ github.event.issue.number }}
+          labels: translation-request,documentation
+          delete-branch: true

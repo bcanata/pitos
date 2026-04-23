@@ -4,6 +4,8 @@ An AI-powered workspace for FRC (FIRST Robotics Competition) teams. Slack-style 
 
 Built for the [Built with Claude Opus 4.7 Hackathon](https://cerebralvalley.ai/e/built-with-4-7-hackathon).
 
+> **Read in:** [English](README.md) · [Türkçe](README.tr.md) · [Other language? →](https://github.com/bcanata/pitos/issues/new?labels=translation-request&template=translation-request.md)
+
 ---
 
 ## Quick start
