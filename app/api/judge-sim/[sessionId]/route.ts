@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
+import { isDemoUser } from "@/lib/demo";
 import { db } from "@/db";
 import { memberships, judgeSessions } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -11,6 +12,7 @@ export async function POST(
 ) {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isDemoUser(user.email)) return NextResponse.json({ error: "Not available in demo" }, { status: 403 });
 
   const { sessionId } = await params;
 
@@ -53,6 +55,7 @@ export async function GET(
 ) {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isDemoUser(user.email)) return NextResponse.json({ error: "Not available in demo" }, { status: 403 });
 
   const { sessionId } = await params;
 

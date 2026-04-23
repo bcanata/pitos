@@ -57,6 +57,13 @@ function AuthFormInner({ error }: { error?: string }) {
         <p className="text-sm text-muted-foreground mt-1">{t("auth.tagline")}</p>
       </div>
 
+      {/* Demo access */}
+      <a href="/api/auth/demo" className="w-full max-w-sm">
+        <Button type="button" variant="secondary" className="w-full">
+          Try Demo — view-only, no sign-in required
+        </Button>
+      </a>
+
       {/* Card */}
       <Card className="w-full max-w-sm">
         <CardHeader className="pb-4">

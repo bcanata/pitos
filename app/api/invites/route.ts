@@ -4,10 +4,12 @@ import { db } from "@/db";
 import { invites, memberships, users } from "@/db/schema";
 import { eq, isNull, and } from "drizzle-orm";
 import { getSession } from "@/lib/session";
+import { isDemoUser } from "@/lib/demo";
 
 export async function POST(request: Request) {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isDemoUser(user.email)) return NextResponse.json({ error: "Not available in demo" }, { status: 403 });
 
   const body = await request.json();
   const email: string | undefined = body?.email;
@@ -78,6 +80,7 @@ export async function POST(request: Request) {
 export async function GET() {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isDemoUser(user.email)) return NextResponse.json({ error: "Not available in demo" }, { status: 403 });
 
   const membership = await db
     .select()

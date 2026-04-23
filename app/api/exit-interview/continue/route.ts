@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
+import { isDemoUser } from "@/lib/demo";
 import { continueExitInterview } from "@/lib/agents/exit-interview-agent";
 
 export async function POST(req: Request) {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isDemoUser(user.email)) return NextResponse.json({ error: "Not available in demo" }, { status: 403 });
 
   const body = (await req.json()) as { packId?: string; answer?: string };
 

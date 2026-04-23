@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { messages, channels, memberships } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { notifyChannel } from "@/lib/sse";
+import { isDemoUser } from "@/lib/demo";
 
 type Params = { params: Promise<{ channelId: string }> };
 
@@ -25,6 +26,7 @@ export async function GET(_req: Request, { params }: Params) {
 export async function POST(req: Request, { params }: Params) {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isDemoUser(user.email)) return NextResponse.json({ error: "Demo users cannot send messages" }, { status: 403 });
   const { channelId } = await params;
 
   const { content } = await req.json();

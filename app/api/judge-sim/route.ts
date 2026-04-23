@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
+import { isDemoUser } from "@/lib/demo";
 import { db } from "@/db";
 import { memberships, judgeSessions } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
@@ -8,6 +9,7 @@ import { startJudgeSim } from "@/lib/agents/judge-sim-agent";
 export async function POST(req: Request) {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isDemoUser(user.email)) return NextResponse.json({ error: "Not available in demo" }, { status: 403 });
 
   const body = await req.json();
   const award: string = body?.award?.trim() ?? "";
@@ -35,6 +37,7 @@ export async function POST(req: Request) {
 export async function GET() {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isDemoUser(user.email)) return NextResponse.json({ error: "Not available in demo" }, { status: 403 });
 
   const membership = await db
     .select()
