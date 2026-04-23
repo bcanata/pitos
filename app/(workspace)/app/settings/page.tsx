@@ -7,6 +7,7 @@ import { getTeamBundle } from "@/lib/i18n/server";
 import { t } from "@/lib/i18n/index";
 import InviteForm from "@/components/workspace/invite-form";
 import LanguageSettings from "@/components/workspace/language-settings";
+import TeamInfoForm from "@/components/workspace/team-info-form";
 
 export default async function SettingsPage() {
   const { user } = await getSession();
@@ -56,8 +57,14 @@ export default async function SettingsPage() {
   }));
 
   return (
+    <div className="h-full overflow-y-auto">
     <div className="max-w-2xl mx-auto p-6 space-y-8">
       <h1 className="text-xl font-semibold">{t(bundle, "settings.title")}</h1>
+
+      <section className="space-y-3">
+        <h2 className="text-base font-medium border-b border-border pb-2">Team info</h2>
+        <TeamInfoForm team={{ name: team?.name ?? "", number: team?.number ?? null }} />
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-base font-medium border-b border-border pb-2">
@@ -103,6 +110,7 @@ export default async function SettingsPage() {
           currentLang={user.language ?? "en"}
         />
       </section>
+    </div>
     </div>
   );
 }
