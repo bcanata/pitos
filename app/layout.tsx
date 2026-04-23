@@ -16,10 +16,19 @@ export const metadata: Metadata = {
   title: "PitOS",
   description: "AI-native team platform for FRC",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "PitOS",
+  },
+  openGraph: {
+    title: "PitOS",
+    description: "AI-native team platform for FRC",
+    images: [{ url: "/logo.png", width: 1254, height: 1254 }],
   },
 };
 

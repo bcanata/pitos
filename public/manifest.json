@@ -1,16 +1,22 @@
 {
   "name": "PitOS",
   "short_name": "PitOS",
-  "description": "AI-native team platform",
+  "description": "AI-native team platform for FRC",
   "start_url": "/app",
   "display": "standalone",
-  "background_color": "#0f0f0f",
-  "theme_color": "#1a7a6e",
+  "background_color": "#0d1f3c",
+  "theme_color": "#0d1f3c",
   "icons": [
     {
-      "src": "/icons/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]
