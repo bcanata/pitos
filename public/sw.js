@@ -1,4 +1,4 @@
-const CACHE = "pitos-v1";
+const CACHE = "pitos-v2";
 const OFFLINE = "/offline";
 
 self.addEventListener("install", (e) => {
@@ -22,6 +22,7 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  if (e.request.mode === "navigate") return;
   const url = new URL(e.request.url);
   if (url.pathname.startsWith("/api/")) return;
   e.respondWith(
