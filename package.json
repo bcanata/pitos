@@ -2,15 +2,22 @@
   "name": "pitos",
   "version": "0.1.0",
   "description": "FRC team workspace with magic-link auth, Slack-style channels, and Claude-powered agents. Run `npx pitos` to scaffold.",
-  "keywords": ["frc", "robotics", "workspace", "claude", "anthropic", "nextjs"],
+  "keywords": [
+    "frc",
+    "robotics",
+    "workspace",
+    "claude",
+    "anthropic",
+    "nextjs"
+  ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/bcanata/pitos.git"
+    "url": "git+https://github.com/bcanata/pitos.git"
   },
   "license": "MIT",
   "bin": {
-    "pitos": "./bin/pitos.js",
-    "pitos-mcp": "./bin/pitos-mcp.js"
+    "pitos": "bin/pitos.js",
+    "pitos-mcp": "bin/pitos-mcp.js"
   },
   "files": [
     "app",
