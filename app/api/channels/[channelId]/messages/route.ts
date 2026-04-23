@@ -48,14 +48,19 @@ export async function POST(req: Request, { params }: Params) {
   };
   await db.insert(messages).values(message);
 
-  triggerChannelAgent(channelId, message.id, membership.teamId).catch(console.error);
+  triggerChannelAgent(channelId, message.id, membership.teamId, membership.role).catch(console.error);
 
   notifyChannel(channelId, { type: "message", data: message });
 
   return NextResponse.json({ message });
 }
 
-async function triggerChannelAgent(channelId: string, messageId: string, teamId: string) {
+async function triggerChannelAgent(
+  channelId: string,
+  messageId: string,
+  teamId: string,
+  role: "lead_mentor" | "mentor" | "captain" | "student",
+) {
   const { runChannelAgent } = await import("@/lib/agents/channel-agent");
-  await runChannelAgent({ channelId, messageId, teamId });
+  await runChannelAgent({ channelId, messageId, teamId, role });
 }

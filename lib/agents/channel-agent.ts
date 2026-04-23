@@ -1,13 +1,19 @@
 import { anthropic } from "@/lib/anthropic";
 import { db } from "@/db";
-import { messages, teams, channels, agentRuns, tasks } from "@/db/schema";
+import { messages, teams, channels, agentRuns, tasks, users } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { notifyChannel } from "@/lib/sse";
+import {
+  MENTION_PATTERN,
+  runMentionAgent,
+  type MembershipRole,
+} from "@/lib/agents/pitos-mention";
 
 interface ChannelAgentInput {
   channelId: string;
   messageId: string;
   teamId: string;
+  role?: MembershipRole;
 }
 
 interface AgentResponse {
@@ -20,7 +26,7 @@ interface AgentResponse {
   reasoning?: string;
 }
 
-export async function runChannelAgent({ channelId, messageId, teamId }: ChannelAgentInput) {
+export async function runChannelAgent({ channelId, messageId, teamId, role }: ChannelAgentInput) {
   const start = Date.now();
 
   const team = await db.select().from(teams).where(eq(teams.id, teamId)).get();
@@ -40,7 +46,27 @@ export async function runChannelAgent({ channelId, messageId, teamId }: ChannelA
     `[${m.agentGenerated ? "PitOS" : "user"}] ${m.content}`
   ).join("\n");
 
-  const lang = team.language ?? "en";
+  const authorUserId = triggerMessage.userId;
+  const authorLanguage = authorUserId
+    ? (await db.select().from(users).where(eq(users.id, authorUserId)).get())?.language
+    : undefined;
+  const lang = authorLanguage ?? team.language ?? "en";
+
+  if (MENTION_PATTERN.test(triggerMessage.content) && authorUserId && role) {
+    await runMentionAgent({
+      channelId,
+      channelName: channel.name,
+      messageId,
+      teamId,
+      teamName: team.name,
+      triggerContent: triggerMessage.content,
+      transcript: contextLines,
+      userId: authorUserId,
+      role,
+      language: lang,
+    });
+    return;
+  }
   const systemPrompt = `You are a team member of ${team.name}, present in channel #${channel.name}.
 
 You are not a helpful assistant. You are the team's jury rehearsal partner. Your job is to notice when the team makes claims without evidence, makes decisions without recording the rationale, or when a student needs to be taught rather than given an answer.

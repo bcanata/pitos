@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Hash, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +26,7 @@ interface Props {
 
 export default function ChannelView({ channel, initialMessages }: Props) {
   const t = useT();
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -40,10 +42,12 @@ export default function ChannelView({ channel, initialMessages }: Props) {
           if (prev.find(m => m.id === data.id)) return prev;
           return [...prev, data];
         });
+      } else if (type === "channels_updated") {
+        router.refresh();
       }
     };
     return () => es.close();
-  }, [channel.id]);
+  }, [channel.id, router]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
