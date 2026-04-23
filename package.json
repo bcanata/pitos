@@ -58,11 +58,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
-    "@libsql/client": "^0.14.0",
     "@base-ui/react": "^1.4.1",
     "@inquirer/prompts": "^8.4.2",
+    "@libsql/client": "^0.14.0",
     "@lucia-auth/adapter-drizzle": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "arctic": "^3.7.0",
     "better-sqlite3": "^12.9.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
