@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { Hash, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import MessageBubble from "./message-bubble";
 import { useT } from "@/lib/i18n/client";
 
@@ -16,15 +15,17 @@ interface Message {
   agentGenerated: boolean;
   agentType: string | null;
   juryReflexKind: string | null;
+  senderName?: string | null;
   createdAt: string;
 }
 
 interface Props {
   channel: { id: string; name: string; description: string | null };
   initialMessages: Message[];
+  currentUserId: string | null;
 }
 
-export default function ChannelView({ channel, initialMessages }: Props) {
+export default function ChannelView({ channel, initialMessages, currentUserId }: Props) {
   const t = useT();
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -56,15 +57,24 @@ export default function ChannelView({ channel, initialMessages }: Props) {
 
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
-    if (!input.trim() || sending) return;
+    const content = input.trim();
+    if (!content || sending) return;
     setSending(true);
+    setInput("");
     try {
-      await fetch(`/api/channels/${channel.id}/messages`, {
+      const res = await fetch(`/api/channels/${channel.id}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: input.trim() }),
+        body: JSON.stringify({ content }),
       });
-      setInput("");
+      if (res.ok) {
+        const { message } = await res.json();
+        // Optimistically add — SSE deduplicates via id check
+        setMessages(prev => {
+          if (prev.find(m => m.id === message.id)) return prev;
+          return [...prev, { ...message, createdAt: new Date(message.createdAt).toISOString() }];
+        });
+      }
     } finally {
       setSending(false);
     }
@@ -88,8 +98,8 @@ export default function ChannelView({ channel, initialMessages }: Props) {
         )}
       </div>
 
-      {/* Messages */}
-      <ScrollArea className="flex-1 px-4 py-4">
+      {/* Messages — plain div so overflow-y-auto works reliably in flex column */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <p className="text-sm font-medium text-muted-foreground">{t("channel.empty")}</p>
@@ -97,10 +107,12 @@ export default function ChannelView({ channel, initialMessages }: Props) {
           </div>
         )}
         <div className="space-y-1.5">
-          {messages.map(m => <MessageBubble key={m.id} message={m} />)}
+          {messages.map(m => (
+            <MessageBubble key={m.id} message={m} currentUserId={currentUserId} />
+          ))}
         </div>
         <div ref={bottomRef} />
-      </ScrollArea>
+      </div>
 
       {/* Input */}
       <form onSubmit={sendMessage} className="px-4 py-3 border-t border-border shrink-0">

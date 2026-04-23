@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { db } from "@/db";
-import { messages, channels, memberships } from "@/db/schema";
+import { messages, channels, memberships, users } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { notifyChannel } from "@/lib/sse";
 import { isDemoUser } from "@/lib/demo";
@@ -13,7 +13,21 @@ export async function GET(_req: Request, { params }: Params) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { channelId } = await params;
 
-  const msgsRaw = await db.select().from(messages)
+  const msgsRaw = await db
+    .select({
+      id: messages.id,
+      channelId: messages.channelId,
+      userId: messages.userId,
+      content: messages.content,
+      agentGenerated: messages.agentGenerated,
+      agentType: messages.agentType,
+      juryReflexKind: messages.juryReflexKind,
+      metadata: messages.metadata,
+      createdAt: messages.createdAt,
+      senderName: users.name,
+    })
+    .from(messages)
+    .leftJoin(users, eq(messages.userId, users.id))
     .where(eq(messages.channelId, channelId))
     .orderBy(desc(messages.createdAt))
     .limit(50)
@@ -50,7 +64,7 @@ export async function POST(req: Request, { params }: Params) {
 
   triggerChannelAgent(channelId, message.id, membership.teamId, membership.role).catch(console.error);
 
-  notifyChannel(channelId, { type: "message", data: message });
+  notifyChannel(channelId, { type: "message", data: { ...message, senderName: user.name } });
 
   return NextResponse.json({ message });
 }

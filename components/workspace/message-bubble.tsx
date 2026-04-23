@@ -1,3 +1,4 @@
+"use client";
 import { cn } from "@/lib/utils";
 import { Bot, Gavel } from "lucide-react";
 
@@ -8,6 +9,7 @@ interface Message {
   agentGenerated: boolean;
   agentType: string | null;
   juryReflexKind: string | null;
+  senderName?: string | null;
   createdAt: string;
 }
 
@@ -17,8 +19,14 @@ const reflexLabels: Record<string, string> = {
   teach_redirect: "teach mode",
 };
 
-export default function MessageBubble({ message }: { message: Message }) {
+interface Props {
+  message: Message;
+  currentUserId?: string | null;
+}
+
+export default function MessageBubble({ message, currentUserId }: Props) {
   const isAgent = message.agentGenerated;
+  const isOwn = !!currentUserId && message.userId === currentUserId;
   const time = new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
   if (isAgent) {
@@ -40,13 +48,17 @@ export default function MessageBubble({ message }: { message: Message }) {
     );
   }
 
+  const displayName = isOwn ? "you" : (message.senderName ?? "—");
+
   return (
-    <div className="group px-3 py-2 rounded-lg hover:bg-muted/40">
+    <div className={cn("group px-3 py-2 rounded-lg hover:bg-muted/40", isOwn && "hover:bg-primary/5")}>
       <div className="flex items-baseline gap-2 mb-0.5">
-        <span className="text-xs font-semibold text-foreground/80">you</span>
+        <span className={cn("text-xs font-semibold", isOwn ? "text-primary/70" : "text-foreground/80")}>
+          {displayName}
+        </span>
         <span className="text-xs text-muted-foreground">{time}</span>
       </div>
-      <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap pl-0">{message.content}</p>
+      <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{message.content}</p>
     </div>
   );
 }

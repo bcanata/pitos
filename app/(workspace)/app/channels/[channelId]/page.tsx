@@ -13,7 +13,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ channe
   ]);
 
   if (!teamRes.ok) redirect("/auth");
-  const { channels } = await teamRes.json();
+  const { channels, membership } = await teamRes.json();
   const { messages: initialMessages } = msgRes.ok ? await msgRes.json() : { messages: [] };
 
   const channel = channels.find((c: { id: string }) => c.id === channelId);
@@ -22,7 +22,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ channe
   return (
     <div className="flex h-full overflow-hidden">
       <div className="flex-1 overflow-hidden">
-        <ChannelView channel={channel} initialMessages={initialMessages} />
+        <ChannelView channel={channel} initialMessages={initialMessages} currentUserId={membership?.userId ?? null} />
       </div>
       <RightPanel channelId={channelId} />
     </div>
