@@ -61,6 +61,17 @@ export default function ChannelSidebar({ team, channels }: Props) {
         <Link href="/app/settings" className={navLink("/app/settings", pathname)}>
           <Settings size={14} />{t("sidebar.settings")}
         </Link>
+        <form action="/api/auth/logout" method="POST">
+          <button
+            type="submit"
+            className={cn(
+              "flex w-full items-center gap-2 mx-2 px-2 py-1.5 rounded text-sm",
+              "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <LogOut size={14} />Sign out
+          </button>
+        </form>
       </div>
     </aside>
   );
