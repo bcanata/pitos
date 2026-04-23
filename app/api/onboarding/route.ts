@@ -69,11 +69,30 @@ export async function POST(req: Request) {
       await db.update(users).set({ name: memberName }).where(eq(users.id, user.id));
     }
 
-    const defaultChannels = [
-      { name: "general", description: "General team discussion" },
-      { name: "outreach", description: "Community outreach & events" },
-      { name: "build", description: "Robot build & engineering" },
-      { name: "programming", description: "Software & programming" },
+    const defaultChannels: { name: string; description: string; type?: "public" | "private" }[] = [
+      // Çekirdek
+      { name: "genel",       description: "Duyurular, takım çapında konular" },
+      { name: "sohbet",      description: "Sosyal, takım kültürü, off-topic" },
+      { name: "mentorlar",   description: "Mentor koordinasyonu", type: "private" },
+      // Alt takımlar
+      { name: "mekanik",     description: "Tasarım, montaj, test" },
+      { name: "yazilim",     description: "Kod, vision, elektrik-yazılım entegrasyonu" },
+      { name: "elektrik",    description: "Kablolama, motor controller, sensör" },
+      { name: "cad",         description: "Onshape/SolidWorks tasarım, parça listesi" },
+      { name: "strateji",    description: "Oyun analizi, ittifak seçimi, scouting" },
+      // Business / Outreach
+      { name: "outreach",    description: "Topluluk etkinlikleri, okul ziyaretleri, demolar" },
+      { name: "sponsorlar",  description: "Sponsor ilişkileri, toplantılar, takip" },
+      { name: "medya",       description: "Sosyal medya, fotoğraf, video, basın" },
+      { name: "oduller",     description: "Impact, Engineering Inspiration, Dean's List başvuruları" },
+      // Sezona özel
+      { name: "scouting",    description: "Rakip analiz, maç verisi, ittifak seçimi" },
+      { name: "pit-ekibi",   description: "Turnuva pit operasyonları" },
+      { name: "seyahat",     description: "Ulaşım, konaklama, lojistik" },
+      // Opsiyonel
+      { name: "kit-parcalari", description: "KOP envanter, kayıp parça takibi" },
+      { name: "guvenlik",    description: "Güvenlik olayları, ekipman bakımı" },
+      { name: "mezunlar",    description: "Mezunlarla bağlantı — Exit Interview kaydı" },
     ];
 
     for (const ch of defaultChannels) {
@@ -83,7 +102,7 @@ export async function POST(req: Request) {
         teamId,
         name: ch.name,
         description: ch.description,
-        type: "public",
+        type: ch.type ?? "public",
         createdAt: now,
       });
       await db.insert(channelMembers).values({
