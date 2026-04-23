@@ -39,5 +39,15 @@
   "deploy_updating_url": "Updating APP_URL to the deployed URL...",
   "deploy_redeploying": "Redeploying so APP_URL takes effect...",
   "deploy_done": "Deployed! Visit the URL below and go to /onboarding to create your team on production.",
-  "deploy_failed": "Deployment failed — you can re-run `vercel --prod` manually later."
+  "deploy_failed": "Deployment failed — you can re-run `vercel --prod` manually later.",
+  "domain_prompt": "Set up a custom domain on Cloudflare? (optional)",
+  "prompt_custom_domain": "Custom domain (e.g. pitos.yourteam.com):",
+  "domain_invalid": "Enter a valid domain name (e.g. pitos.yourteam.com).",
+  "prompt_cf_email": "Cloudflare account email:",
+  "prompt_cf_global_key": "Cloudflare Global API Key (cloudflare.com → My Profile → API Tokens):",
+  "domain_setup_dns": "Configuring DNS on Cloudflare...",
+  "domain_setup_vercel": "Adding domain to Vercel project...",
+  "domain_setup_done": "Domain configured. DNS propagation may take a few minutes.",
+  "domain_zone_not_found": "Could not find a Cloudflare zone for {domain}. Make sure the domain is added to your Cloudflare account.",
+  "domain_setup_failed": "Domain setup failed — you can configure it manually in Cloudflare and Vercel dashboards."
 }

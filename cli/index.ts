@@ -15,7 +15,9 @@ import {
   runInteractive,
   pushEnvVars,
   deployProd,
+  addVercelDomain,
 } from "./deploy";
+import { findZone, setupDomainDns, type CfAuth } from "./cloudflare-setup";
 
 const force = process.argv.includes("--force");
 const PKG_ROOT = path.join(__dirname, "..");
@@ -209,12 +211,50 @@ async function main() {
     fromEmail = await input({ message: t("prompt_cf_from") });
   }
 
-  // ── Step 10: Confirmation ──────────────────────────────────────────────────
+  // ── Step 10: Custom domain (optional) ─────────────────────────────────────
+  console.log();
+  const doDomain = await confirm({
+    message: t("domain_prompt"),
+    default: false,
+  });
+
+  let customDomain = "";
+  let cfEmail = "";
+  let cfGlobalKey = "";
+
+  if (doDomain) {
+    customDomain = await input({
+      message: t("prompt_custom_domain"),
+      validate: (v) => {
+        const d = v.trim();
+        return /^[a-zA-Z0-9]([a-zA-Z0-9-]*\.)+[a-zA-Z]{2,}$/.test(d) || t("domain_invalid");
+      },
+    });
+    customDomain = customDomain.trim().toLowerCase();
+
+    cfEmail = await input({
+      message: t("prompt_cf_email"),
+      validate: (v) =>
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) || t("email_invalid"),
+    });
+    cfEmail = cfEmail.trim();
+
+    cfGlobalKey = await input({ message: t("prompt_cf_global_key") });
+    cfGlobalKey = cfGlobalKey.trim();
+
+    // Default FROM_EMAIL to noreply@{customDomain} if not already set
+    if (!fromEmail && customDomain) {
+      fromEmail = `noreply@${customDomain}`;
+    }
+  }
+
+  // ── Step 11: Confirmation ──────────────────────────────────────────────────
   const sep = "─".repeat(44);
   console.log(`\n${sep}`);
   console.log(`  Team:   ${teamName}${teamNumber ? ` (#${teamNumber})` : ""}`);
   console.log(`  Admin:  ${adminName || "(unnamed)"} <${adminEmail}>`);
   console.log(`  Email:  ${skipCloudflare ? "console (dev mode)" : fromEmail}`);
+  if (customDomain) console.log(`  Domain: ${customDomain}`);
   console.log(`${sep}\n`);
 
   const proceed = await confirm({ message: t("confirm_proceed"), default: true });
@@ -282,6 +322,9 @@ async function main() {
         cloudflareAccountId: written.cloudflareAccountId,
         cloudflareEmailApiToken: written.cloudflareEmailApiToken,
         fromEmail: written.fromEmail,
+        customDomain,
+        cfEmail,
+        cfGlobalKey,
       });
       // deploy completed — skip dev-server offer
       return;
@@ -313,6 +356,9 @@ interface DeployEnvs {
   cloudflareAccountId: string;
   cloudflareEmailApiToken: string;
   fromEmail: string;
+  customDomain?: string;
+  cfEmail?: string;
+  cfGlobalKey?: string;
 }
 
 async function runDeployFlow(envs: DeployEnvs): Promise<void> {
@@ -344,14 +390,50 @@ async function runDeployFlow(envs: DeployEnvs): Promise<void> {
   console.log(`\n${t("deploy_deploying")}\n`);
   const deployedUrl = await deployProd();
 
-  // 4. Update APP_URL to the real deployed URL, then redeploy so it takes effect.
-  console.log(`\n${t("deploy_updating_url")} (${deployedUrl})`);
-  await pushEnvVars({ APP_URL: deployedUrl });
+  // 4. Custom domain setup (Cloudflare DNS + Vercel alias).
+  let appUrl = deployedUrl;
+
+  if (envs.customDomain && envs.cfEmail && envs.cfGlobalKey) {
+    const auth: CfAuth = { email: envs.cfEmail, key: envs.cfGlobalKey };
+
+    console.log(`\n${t("domain_setup_dns")}`);
+    const zoneId = await findZone(envs.customDomain, auth);
+    if (!zoneId) {
+      console.warn(`\n  ${t("domain_zone_not_found", { domain: envs.customDomain })}`);
+    } else {
+      const result = await setupDomainDns(zoneId, envs.customDomain, auth);
+      const lines = [
+        `  CNAME  ${result.cname}`,
+        `  SPF    ${result.spf}`,
+        `  DKIM   ${result.dkim}`,
+      ];
+      if (result.errors.length) lines.push(...result.errors.map((e) => `  ⚠ ${e}`));
+      console.log(lines.join("\n"));
+
+      console.log(`\n${t("domain_setup_vercel")}`);
+      try {
+        await addVercelDomain(envs.customDomain);
+        appUrl = `https://${envs.customDomain}`;
+        // Update FROM_EMAIL env if it was auto-derived
+        if (envs.fromEmail === `noreply@${envs.customDomain}`) {
+          await pushEnvVars({ FROM_EMAIL: envs.fromEmail });
+        }
+        console.log(`  ${t("domain_setup_done")}`);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`  ${t("domain_setup_failed")}\n  ${msg}`);
+      }
+    }
+  }
+
+  // 5. Update APP_URL to the final URL, then redeploy so it takes effect.
+  console.log(`\n${t("deploy_updating_url")} (${appUrl})`);
+  await pushEnvVars({ APP_URL: appUrl });
 
   console.log(`\n${t("deploy_redeploying")}\n`);
   const finalUrl = await deployProd();
 
-  // 5. Success.
+  // 6. Success.
   console.log(`\n${"═".repeat(52)}`);
   console.log(`  ${t("deploy_done")}`);
   console.log(`${"═".repeat(52)}`);

@@ -132,3 +132,23 @@ export async function deployProd(): Promise<string> {
     });
   });
 }
+
+/** Add a custom domain alias to the linked Vercel project. */
+export async function addVercelDomain(domain: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("vercel", ["domains", "add", domain, "--yes"], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
+    child.stdout.on("data", (d: Buffer) => process.stdout.write(d));
+    child.on("error", (e) => reject(e));
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`vercel domains add failed: ${stderr.trim()}`));
+      }
+    });
+  });
+}
