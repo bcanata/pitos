@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   const query: string = body?.query?.trim() ?? "";
   if (!query) return NextResponse.json({ error: "query is required" }, { status: 400 });
 
-  const membership = db
+  const membership = await db
     .select()
     .from(memberships)
     .where(eq(memberships.userId, user.id))

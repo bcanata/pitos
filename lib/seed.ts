@@ -1,25 +1,24 @@
 import { db } from "@/db";
 import { teams, memberships, channels, channelMembers } from "@/db/schema";
-import { eq } from "drizzle-orm";
 
-export function seedTeamForUser(userId: string) {
+export async function seedTeamForUser(userId: string): Promise<string> {
   const teamId = crypto.randomUUID();
   const now = new Date();
 
-  db.insert(teams).values({
+  await db.insert(teams).values({
     id: teamId,
     name: "My FRC Team",
     createdByUserId: userId,
     createdAt: now,
-  }).run();
+  });
 
-  db.insert(memberships).values({
+  await db.insert(memberships).values({
     id: crypto.randomUUID(),
     userId,
     teamId,
     role: "lead_mentor",
     joinedAt: now,
-  }).run();
+  });
 
   const defaultChannels = [
     { name: "general", description: "General team discussion" },
@@ -29,20 +28,20 @@ export function seedTeamForUser(userId: string) {
 
   for (const ch of defaultChannels) {
     const channelId = crypto.randomUUID();
-    db.insert(channels).values({
+    await db.insert(channels).values({
       id: channelId,
       teamId,
       name: ch.name,
       description: ch.description,
       type: "public",
       createdAt: now,
-    }).run();
-    db.insert(channelMembers).values({
+    });
+    await db.insert(channelMembers).values({
       id: crypto.randomUUID(),
       channelId,
       userId,
       joinedAt: now,
-    }).run();
+    });
   }
 
   return teamId;

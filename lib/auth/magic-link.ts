@@ -2,6 +2,8 @@ import { randomBytes } from "crypto";
 import { db } from "@/db";
 import { magicLinks } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { sendViaResend } from "./email-providers/resend";
+import { sendViaCloudflare } from "./email-providers/cloudflare";
 
 export async function sendMagicLink(email: string): Promise<void> {
   const token = randomBytes(32).toString("hex");
@@ -11,33 +13,14 @@ export async function sendMagicLink(email: string): Promise<void> {
   await db.insert(magicLinks).values({ id, email, token, expiresAt });
 
   const url = `${process.env.APP_URL ?? "http://localhost:3000"}/api/auth/verify?token=${token}`;
+  const subject = "Your PitOS magic link";
+  const html = `<p>Click <a href="${url}">here</a> to sign in to PitOS. This link expires in 15 minutes.</p>`;
+  const text = `Sign in to PitOS: ${url}\n\nThis link expires in 15 minutes.`;
 
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const apiToken = process.env.CLOUDFLARE_EMAIL_API_TOKEN;
-  const fromEmail = process.env.FROM_EMAIL ?? "noreply@pitos.app";
-
-  if (accountId && apiToken) {
-    const res = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${accountId}/email/sending/send`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: `PitOS <${fromEmail}>`,
-          to: email,
-          subject: "Your PitOS magic link",
-          html: `<p>Click <a href="${url}">here</a> to sign in to PitOS. This link expires in 15 minutes.</p>`,
-          text: `Sign in to PitOS: ${url}\n\nThis link expires in 15 minutes.`,
-        }),
-      }
-    );
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Cloudflare Email send failed: ${res.status} ${body}`);
-    }
+  if (process.env.RESEND_API_KEY) {
+    await sendViaResend(email, subject, html, text);
+  } else if (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_EMAIL_API_TOKEN) {
+    await sendViaCloudflare(email, subject, html, text);
   } else {
     console.log("[dev] Magic link:", url);
   }

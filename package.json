@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
+    "@libsql/client": "^0.14.0",
     "@base-ui/react": "^1.4.1",
     "@inquirer/prompts": "^8.4.2",
     "@lucia-auth/adapter-drizzle": "^1.1.0",

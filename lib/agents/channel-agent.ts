@@ -23,20 +23,18 @@ interface AgentResponse {
 export async function runChannelAgent({ channelId, messageId, teamId }: ChannelAgentInput) {
   const start = Date.now();
 
-  // Get team name and channel name for context
-  const team = db.select().from(teams).where(eq(teams.id, teamId)).get();
-  const channel = db.select().from(channels).where(eq(channels.id, channelId)).get();
-  const triggerMessage = db.select().from(messages).where(eq(messages.id, messageId)).get();
+  const team = await db.select().from(teams).where(eq(teams.id, teamId)).get();
+  const channel = await db.select().from(channels).where(eq(channels.id, channelId)).get();
+  const triggerMessage = await db.select().from(messages).where(eq(messages.id, messageId)).get();
 
   if (!team || !channel || !triggerMessage) return;
 
-  // Get last 20 messages for context
-  const recentMessages = db.select().from(messages)
+  const recentMsgsRaw = await db.select().from(messages)
     .where(eq(messages.channelId, channelId))
     .orderBy(desc(messages.createdAt))
     .limit(20)
-    .all()
-    .reverse();
+    .all();
+  const recentMessages = recentMsgsRaw.reverse();
 
   const contextLines = recentMessages.map(m =>
     `[${m.agentGenerated ? "PitOS" : "user"}] ${m.content}`
@@ -83,7 +81,6 @@ Respond with a JSON object:
 
     let parsed: AgentResponse | null = null;
     try {
-      // Extract JSON from response (might have markdown fences)
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) parsed = JSON.parse(jsonMatch[0]) as AgentResponse;
     } catch {}
@@ -91,7 +88,6 @@ Respond with a JSON object:
     console.log(`[agent:channel] #${channel.name} → action=${parsed?.action ?? "parse_error"} reflex=${parsed?.jury_reflex_kind ?? "none"} | ${parsed?.reasoning ?? text.slice(0, 100)}`);
 
     if (parsed?.action === "respond" && parsed.response) {
-      // Insert agent message row
       const agentMsgId = crypto.randomUUID();
       const agentMessage = {
         id: agentMsgId,
@@ -103,11 +99,10 @@ Respond with a JSON object:
         juryReflexKind: (parsed.jury_reflex_kind ?? null) as "proof_demand" | "why_question" | "teach_redirect" | null,
         createdAt: new Date(),
       };
-      db.insert(messages).values(agentMessage).run();
+      await db.insert(messages).values(agentMessage);
       notifyChannel(channelId, { type: "message", data: agentMessage });
 
     } else if (parsed?.action === "create_task" && parsed.task_title) {
-      // Insert task
       const taskId = crypto.randomUUID();
       const task = {
         id: taskId,
@@ -119,9 +114,8 @@ Respond with a JSON object:
         status: "open" as const,
         createdAt: new Date(),
       };
-      db.insert(tasks).values(task).run();
+      await db.insert(tasks).values(task);
 
-      // Post confirmation message to channel
       const confirmMsgId = crypto.randomUUID();
       const confirmMessage = {
         id: confirmMsgId,
@@ -132,14 +126,12 @@ Respond with a JSON object:
         agentType: "channel" as string,
         createdAt: new Date(),
       };
-      db.insert(messages).values(confirmMessage).run();
+      await db.insert(messages).values(confirmMessage);
       notifyChannel(channelId, { type: "message", data: confirmMessage });
       notifyChannel(channelId, { type: "task_created", data: task });
     }
-    // "no_action": nothing to do, just save the agentRun below
 
-    // Log agent run
-    db.insert(agentRuns).values({
+    await db.insert(agentRuns).values({
       id: crypto.randomUUID(),
       teamId,
       trigger: `message:${messageId}`,
@@ -150,13 +142,12 @@ Respond with a JSON object:
       tokensUsed: result.usage.input_tokens + result.usage.output_tokens,
       durationMs: Date.now() - start,
       createdAt: new Date(),
-    }).run();
+    });
 
   } catch (err) {
     console.error("[agent:channel] error:", err);
 
-    // Log failed run
-    db.insert(agentRuns).values({
+    await db.insert(agentRuns).values({
       id: crypto.randomUUID(),
       teamId,
       trigger: `message:${messageId}`,
@@ -166,6 +157,6 @@ Respond with a JSON object:
       output,
       durationMs: Date.now() - start,
       createdAt: new Date(),
-    }).run();
+    });
   }
 }

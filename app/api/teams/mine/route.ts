@@ -9,15 +9,15 @@ export async function GET() {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let membership = db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
+  let membership = await db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
 
   if (!membership) {
-    seedTeamForUser(user.id);
-    membership = db.select().from(memberships).where(eq(memberships.userId, user.id)).get()!;
+    await seedTeamForUser(user.id);
+    membership = (await db.select().from(memberships).where(eq(memberships.userId, user.id)).get())!;
   }
 
-  const team = db.select().from(teams).where(eq(teams.id, membership.teamId)).get()!;
-  const teamChannels = db.select().from(channels).where(eq(channels.teamId, team.id)).all();
+  const team = (await db.select().from(teams).where(eq(teams.id, membership.teamId)).get())!;
+  const teamChannels = await db.select().from(channels).where(eq(channels.teamId, team.id)).all();
 
   return NextResponse.json({ team, channels: teamChannels, membership });
 }

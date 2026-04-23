@@ -12,7 +12,7 @@ export default async function SettingsPage() {
   const { user } = await getSession();
   if (!user) redirect("/auth");
 
-  const membership = db
+  const membership = await db
     .select()
     .from(memberships)
     .where(eq(memberships.userId, user.id))
@@ -20,7 +20,7 @@ export default async function SettingsPage() {
 
   if (!membership) redirect("/onboarding");
 
-  const team = db
+  const team = await db
     .select()
     .from(teams)
     .where(eq(teams.id, membership.teamId))
@@ -28,7 +28,7 @@ export default async function SettingsPage() {
 
   const { bundle } = await getTeamBundle(user.id);
 
-  const teamMemberships = db
+  const teamMemberships = await db
     .select({
       membershipId: memberships.id,
       role: memberships.role,
@@ -43,7 +43,7 @@ export default async function SettingsPage() {
     .where(eq(memberships.teamId, membership.teamId))
     .all();
 
-  const pendingInvites = db
+  const pendingInvites = await db
     .select()
     .from(invites)
     .where(and(eq(invites.teamId, membership.teamId), isNull(invites.acceptedAt)))

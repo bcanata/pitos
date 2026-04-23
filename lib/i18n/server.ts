@@ -38,7 +38,7 @@ export function getBundleForLang(lang: string): Bundle {
 export async function getTeamBundle(
   userId: string
 ): Promise<{ lang: string; bundle: Bundle }> {
-  const membership = db
+  const membership = await db
     .select()
     .from(memberships)
     .where(eq(memberships.userId, userId))
@@ -46,7 +46,7 @@ export async function getTeamBundle(
 
   if (!membership) return { lang: "en", bundle: EN_BUNDLE };
 
-  const team = db
+  const team = await db
     .select()
     .from(teams)
     .where(eq(teams.id, membership.teamId))
@@ -58,8 +58,7 @@ export async function getTeamBundle(
     return { lang, bundle: merge(lang) };
   }
 
-  // Custom language — check DB cache
-  const cached = db
+  const cached = await db
     .select()
     .from(translationCache)
     .where(eq(translationCache.lang, lang))
@@ -74,7 +73,6 @@ export async function getTeamBundle(
     }
   }
 
-  // Translate on demand
   const { translateBundle } = await import("./translate");
   const translated = await translateBundle(lang);
   if (translated) return { lang, bundle: { ...enBundle, ...translated } };

@@ -17,7 +17,7 @@ npx tsx scripts/seed-demo.ts  # populate demo data (Team 8092)
 
 ## Architecture
 
-Next.js 16 App Router · TypeScript · Tailwind v4 · shadcn/ui · SQLite via Drizzle ORM · Lucia v3 magic-link auth · Cloudflare Email Service · SSE for real-time · `@anthropic-ai/sdk` with `claude-opus-4-7`.
+Next.js 16 App Router · TypeScript · Tailwind v4 · shadcn/ui · LibSQL (`@libsql/client`) via Drizzle ORM · Lucia v3 magic-link auth · Resend/Cloudflare/console email provider chain · SSE for real-time · `@anthropic-ai/sdk` with `claude-opus-4-7`.
 
 **Key conventions (Next.js 16):**
 - Auth/route protection lives in `proxy.ts` (root), not `middleware.ts` — renamed in Next.js 16.
@@ -42,15 +42,15 @@ Next.js 16 App Router · TypeScript · Tailwind v4 · shadcn/ui · SQLite via Dr
 
 ## Database
 
-SQLite in development (`pitos.db`, gitignored). On Vercel, `db/index.ts` creates a fresh DB at `/tmp/pitos.db` and applies migrations from `drizzle/` on every cold start (idempotent). Run `npm run db:push` locally after any schema change, then `npx drizzle-kit generate` to update the migration file for production.
+Uses `@libsql/client` (async LibSQL driver). Local dev: `file:./pitos.db`. Production: `TURSO_DATABASE_URL` (free 9 GB at turso.tech). Run `npm run db:push` locally after any schema change, then `npx drizzle-kit generate` to update the migration file for production.
 
 JSON columns use `text({ mode: 'json' })` — cast types at the call site with `as`.
 
-**Drizzle + better-sqlite3 is synchronous.** Use `.get()`, `.all()`, `.run()` — never `await` on DB calls. Only `anthropic.messages.create()` and fetch are async.
+**All DB calls are async (LibSQL).** Use `await db.select(...).get()`, `await db.select(...).all()`, `await db.insert(...).values(...)` — no `.run()`. Only `anthropic.messages.create()`, fetch, and DB calls are async.
 
 ## Environment variables
 
-See `.env.example`. Required: `ANTHROPIC_API_KEY`, `AUTH_SECRET`, `APP_URL`. Email (magic links): `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, `FROM_EMAIL`. Without Cloudflare vars, magic links log to console (dev fallback).
+See `.env.example`. Required: `ANTHROPIC_API_KEY`, `AUTH_SECRET`, `APP_URL`. Email provider chain (magic links): `RESEND_API_KEY` + `RESEND_FROM_EMAIL` (free) → `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_EMAIL_API_TOKEN` + `FROM_EMAIL` (Workers Paid) → console log fallback. Persistent DB: `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN`.
 
 ## Deploying (fork & use)
 
@@ -58,6 +58,7 @@ This repo is designed to be forked. To deploy your own instance:
 
 1. Fork the repo
 2. `vercel link` → `vercel --prod`
-3. Set env vars: `ANTHROPIC_API_KEY`, `AUTH_SECRET` (random 64-char hex), `APP_URL` (your Vercel URL), `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, `FROM_EMAIL`
-4. The DB is created and migrated automatically on first request (`drizzle/` migrations bundled via `vercel.json`)
-5. New users go through `/onboarding` to create their team — no manual seeding needed
+3. Set env vars: `ANTHROPIC_API_KEY`, `AUTH_SECRET` (random 64-char hex), `APP_URL` (your Vercel URL)
+4. For email: add `RESEND_API_KEY` + `RESEND_FROM_EMAIL` (free at resend.com)
+5. For persistent DB: add `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` (free at turso.tech)
+6. New users go through `/onboarding` to create their team — no manual seeding needed

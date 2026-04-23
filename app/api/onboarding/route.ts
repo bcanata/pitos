@@ -9,7 +9,7 @@ export async function GET() {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const membership = db
+  const membership = await db
     .select()
     .from(memberships)
     .where(eq(memberships.userId, user.id))
@@ -43,40 +43,32 @@ export async function POST(req: Request) {
     const now = new Date();
     const teamId = crypto.randomUUID();
 
-    // Create the team
-    db.insert(teams)
-      .values({
-        id: teamId,
-        name,
-        number,
-        createdByUserId: user.id,
-        createdAt: now,
-      })
-      .run();
+    await db.insert(teams).values({
+      id: teamId,
+      name,
+      number,
+      createdByUserId: user.id,
+      createdAt: now,
+    });
 
-    // Create the membership
     const validRole = (["lead_mentor", "mentor", "captain", "student"] as const).includes(
       role as "lead_mentor" | "mentor" | "captain" | "student"
     )
       ? (role as "lead_mentor" | "mentor" | "captain" | "student")
       : ("student" as const);
 
-    db.insert(memberships)
-      .values({
-        id: crypto.randomUUID(),
-        userId: user.id,
-        teamId,
-        role: validRole,
-        joinedAt: now,
-      })
-      .run();
+    await db.insert(memberships).values({
+      id: crypto.randomUUID(),
+      userId: user.id,
+      teamId,
+      role: validRole,
+      joinedAt: now,
+    });
 
-    // Update the user's name
     if (memberName) {
-      db.update(users).set({ name: memberName }).where(eq(users.id, user.id)).run();
+      await db.update(users).set({ name: memberName }).where(eq(users.id, user.id));
     }
 
-    // Seed default channels
     const defaultChannels = [
       { name: "general", description: "General team discussion" },
       { name: "outreach", description: "Community outreach & events" },
@@ -86,24 +78,20 @@ export async function POST(req: Request) {
 
     for (const ch of defaultChannels) {
       const channelId = crypto.randomUUID();
-      db.insert(channels)
-        .values({
-          id: channelId,
-          teamId,
-          name: ch.name,
-          description: ch.description,
-          type: "public",
-          createdAt: now,
-        })
-        .run();
-      db.insert(channelMembers)
-        .values({
-          id: crypto.randomUUID(),
-          channelId,
-          userId: user.id,
-          joinedAt: now,
-        })
-        .run();
+      await db.insert(channels).values({
+        id: channelId,
+        teamId,
+        name: ch.name,
+        description: ch.description,
+        type: "public",
+        createdAt: now,
+      });
+      await db.insert(channelMembers).values({
+        id: crypto.randomUUID(),
+        channelId,
+        userId: user.id,
+        joinedAt: now,
+      });
     }
 
     return NextResponse.json({ reply: result.reply, done: true });

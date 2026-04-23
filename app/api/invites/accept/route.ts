@@ -13,18 +13,16 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/auth?error=invalid-invite", appUrl));
   }
 
-  const invite = db.select().from(invites).where(eq(invites.token, token)).get();
+  const invite = await db.select().from(invites).where(eq(invites.token, token)).get();
 
   if (!invite || invite.acceptedAt !== null || invite.expiresAt < new Date()) {
     return NextResponse.redirect(new URL("/auth?error=invalid-invite", appUrl));
   }
 
-  // Check if a user with this email already exists
-  const existingUser = db.select().from(users).where(eq(users.email, invite.email)).get();
+  const existingUser = await db.select().from(users).where(eq(users.email, invite.email)).get();
 
   if (existingUser) {
-    // Create membership if not already a member
-    const existingMembership = db
+    const existingMembership = await db
       .select()
       .from(memberships)
       .where(
@@ -36,25 +34,21 @@ export async function GET(request: Request) {
       .get();
 
     if (!existingMembership) {
-      db.insert(memberships)
-        .values({
-          id: crypto.randomUUID(),
-          userId: existingUser.id,
-          teamId: invite.teamId,
-          role: invite.role,
-          subteam: invite.subteam ?? undefined,
-          joinedAt: new Date(),
-        })
-        .run();
+      await db.insert(memberships).values({
+        id: crypto.randomUUID(),
+        userId: existingUser.id,
+        teamId: invite.teamId,
+        role: invite.role,
+        subteam: invite.subteam ?? undefined,
+        joinedAt: new Date(),
+      });
     }
 
-    // Mark invite as accepted
-    db.update(invites).set({ acceptedAt: new Date() }).where(eq(invites.token, token)).run();
+    await db.update(invites).set({ acceptedAt: new Date() }).where(eq(invites.token, token));
 
     return NextResponse.redirect(new URL("/app", appUrl));
   }
 
-  // No user yet — redirect to auth to create account, preserving invite token
   const redirectUrl = new URL("/auth", appUrl);
   redirectUrl.searchParams.set("email", invite.email);
   redirectUrl.searchParams.set("invite", token);

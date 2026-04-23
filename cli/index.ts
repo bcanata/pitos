@@ -194,18 +194,27 @@ async function main() {
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || t("email_invalid"),
   });
 
-  // ── Step 9: Cloudflare Email (optional) ────────────────────────────────────
+  // ── Step 9: Email provider ─────────────────────────────────────────────────
   console.log();
-  const skipCloudflare = await confirm({
-    message: t("cloudflare_skip"),
-    default: true,
+  const emailProvider = await select({
+    message: t("prompt_email_provider"),
+    choices: [
+      { value: "resend",     name: t("email_provider_resend") },
+      { value: "cloudflare", name: t("email_provider_cloudflare") },
+      { value: "skip",       name: t("email_provider_skip") },
+    ],
   });
 
+  let resendApiKey = "";
+  let resendFromEmail = "";
   let cfAccountId = "";
   let cfToken = "";
   let fromEmail = "";
 
-  if (!skipCloudflare) {
+  if (emailProvider === "resend") {
+    resendApiKey = await input({ message: t("prompt_resend_api_key") });
+    resendFromEmail = await input({ message: t("prompt_resend_from") });
+  } else if (emailProvider === "cloudflare") {
     cfAccountId = await input({ message: t("prompt_cf_account") });
     cfToken = await input({ message: t("prompt_cf_token") });
     fromEmail = await input({ message: t("prompt_cf_from") });
@@ -245,7 +254,7 @@ async function main() {
   console.log(`\n${sep}`);
   console.log(`  Team:   ${teamName}${teamNumber ? ` (#${teamNumber})` : ""}`);
   console.log(`  Admin:  ${adminName || "(unnamed)"} <${adminEmail}>`);
-  console.log(`  Email:  ${skipCloudflare ? "console (dev mode)" : fromEmail}`);
+  console.log(`  Email:  ${emailProvider === "skip" ? "console (dev mode)" : emailProvider === "resend" ? resendFromEmail : fromEmail}`);
   if (customDomain) console.log(`  Domain: ${customDomain}`);
   console.log(`${sep}\n`);
 
@@ -263,6 +272,8 @@ async function main() {
     written = writeEnvFile(
       {
         anthropicApiKey: apiKey,
+        resendApiKey,
+        resendFromEmail,
         cloudflareAccountId: cfAccountId,
         cloudflareEmailApiToken: cfToken,
         fromEmail,
@@ -311,6 +322,8 @@ async function main() {
       await runDeployFlow({
         anthropicApiKey: written.anthropicApiKey,
         authSecret: written.authSecret,
+        resendApiKey: written.resendApiKey,
+        resendFromEmail: written.resendFromEmail,
         cloudflareAccountId: written.cloudflareAccountId,
         cloudflareEmailApiToken: written.cloudflareEmailApiToken,
         fromEmail: written.fromEmail,
@@ -344,6 +357,8 @@ async function main() {
 interface DeployEnvs {
   anthropicApiKey: string;
   authSecret: string;
+  resendApiKey: string;
+  resendFromEmail: string;
   cloudflareAccountId: string;
   cloudflareEmailApiToken: string;
   fromEmail: string;
@@ -371,6 +386,8 @@ async function runDeployFlow(envs: DeployEnvs): Promise<void> {
   await pushEnvVars({
     ANTHROPIC_API_KEY: envs.anthropicApiKey,
     AUTH_SECRET: envs.authSecret,
+    RESEND_API_KEY: envs.resendApiKey,
+    RESEND_FROM_EMAIL: envs.resendFromEmail,
     CLOUDFLARE_ACCOUNT_ID: envs.cloudflareAccountId,
     CLOUDFLARE_EMAIL_API_TOKEN: envs.cloudflareEmailApiToken,
     FROM_EMAIL: envs.fromEmail,
@@ -429,7 +446,24 @@ async function runDeployFlow(envs: DeployEnvs): Promise<void> {
   console.log(`\n${t("deploy_redeploying")}\n`);
   const finalUrl = await deployProd();
 
-  // 6. Success.
+  // 6. Turso persistent database (optional, free).
+  console.log();
+  const doTurso = await confirm({ message: t("prompt_setup_turso"), default: true });
+  if (doTurso) {
+    console.log(`\n  ${t("turso_explainer")}`);
+    console.log("  → https://turso.tech/app/databases/new\n");
+    const tursoUrl = await input({ message: t("prompt_turso_url") });
+    const tursoToken = await input({ message: t("prompt_turso_token") });
+    if (tursoUrl.trim() && tursoToken.trim()) {
+      await pushEnvVars({
+        TURSO_DATABASE_URL: tursoUrl.trim(),
+        TURSO_AUTH_TOKEN: tursoToken.trim(),
+      });
+      console.log(`\n  ${t("turso_setup_done")}`);
+    }
+  }
+
+  // 7. Success.
   console.log(`\n${"═".repeat(52)}`);
   console.log(`  ${t("deploy_done")}`);
   console.log(`${"═".repeat(52)}`);

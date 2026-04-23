@@ -5,35 +5,32 @@ import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export async function runSeasonRecap(teamId: string): Promise<string> {
-  const team = db.select().from(teams).where(eq(teams.id, teamId)).get();
+  const team = await db.select().from(teams).where(eq(teams.id, teamId)).get();
   const lang = team?.language ?? "en";
   const langNote = lang !== "en" ? ` Respond entirely in ${lang}.` : "";
 
-  // 1. Gather data
-  const recentMessages = db
+  const recentMessages = await db
     .select()
     .from(messages)
     .orderBy(desc(messages.createdAt))
     .limit(200)
     .all();
 
-  // Filter to team channels would require a join — use all messages and filter by teamId indirectly
-  // For now gather team-scoped data directly
-  const teamDecisions = db
+  const teamDecisions = await db
     .select()
     .from(decisions)
     .where(eq(decisions.teamId, teamId))
     .orderBy(desc(decisions.recordedAt))
     .all();
 
-  const completedTasks = db
+  const allTasks = await db
     .select()
     .from(tasks)
     .where(eq(tasks.teamId, teamId))
-    .all()
-    .filter((t) => t.status === "done");
+    .all();
+  const completedTasks = allTasks.filter((t) => t.status === "done");
 
-  const topFacts = db
+  const topFacts = await db
     .select()
     .from(extractedFacts)
     .where(eq(extractedFacts.teamId, teamId))
@@ -41,7 +38,6 @@ export async function runSeasonRecap(teamId: string): Promise<string> {
     .limit(50)
     .all();
 
-  // Build context string
   const contextParts: string[] = [];
 
   if (teamDecisions.length > 0) {
@@ -83,7 +79,6 @@ export async function runSeasonRecap(teamId: string): Promise<string> {
       ? contextParts.join("\n\n")
       : "No team data available yet. Write a template-style recap with placeholders.";
 
-  // 2. Call Claude for the recap
   const response = await anthropic.messages.create({
     model: "claude-opus-4-7",
     max_tokens: 8096,
@@ -109,19 +104,16 @@ export async function runSeasonRecap(teamId: string): Promise<string> {
       ? response.content[0].text
       : "Season recap generation failed.";
 
-  // 3. Insert into generatedDocuments
   const docId = randomUUID();
-  db.insert(generatedDocuments)
-    .values({
-      id: docId,
-      teamId,
-      docType: "season_recap",
-      title: `Season Recap — ${new Date().getFullYear()}`,
-      contentMd: fullText,
-      generatedByAgentType: "season-recap",
-      createdAt: new Date(),
-    })
-    .run();
+  await db.insert(generatedDocuments).values({
+    id: docId,
+    teamId,
+    docType: "season_recap",
+    title: `Season Recap — ${new Date().getFullYear()}`,
+    contentMd: fullText,
+    generatedByAgentType: "season-recap",
+    createdAt: new Date(),
+  });
 
   return docId;
 }

@@ -1,22 +1,27 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
+import { migrate } from "drizzle-orm/libsql/migrator";
 import * as schema from "./schema";
 import { join } from "path";
 
-function resolveDbPath(): string {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-  if (process.env.VERCEL) return "/tmp/pitos.db";
-  return "./pitos.db";
+function resolveDbConfig(): { url: string; authToken?: string } {
+  if (process.env.TURSO_DATABASE_URL) {
+    return {
+      url: process.env.TURSO_DATABASE_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    };
+  }
+  const path = process.env.VERCEL ? "/tmp/pitos.db" : (process.env.DATABASE_URL ?? "./pitos.db");
+  const url = path.startsWith("/") ? `file:${path}` : `file:${join(process.cwd(), path)}`;
+  return { url };
 }
 
-const sqlite = new Database(resolveDbPath());
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
+const cfg = resolveDbConfig();
+const client = createClient(cfg);
+export const db = drizzle(client, { schema });
 
-export const db = drizzle(sqlite, { schema });
-
-// In production, apply migrations on every cold start (idempotent).
-if (process.env.VERCEL) {
-  migrate(db, { migrationsFolder: join(process.cwd(), "drizzle") });
+// Idempotent migrations on Vercel cold starts (ephemeral /tmp SQLite only).
+// With Turso, run `npm run db:push` once during CLI setup — no cold-start migrations needed.
+if (process.env.VERCEL && !process.env.TURSO_DATABASE_URL) {
+  migrate(db, { migrationsFolder: join(process.cwd(), "drizzle") }).catch(console.error);
 }

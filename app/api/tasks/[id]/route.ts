@@ -19,7 +19,7 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 
-  const membership = db
+  const membership = await db
     .select()
     .from(memberships)
     .where(eq(memberships.userId, user.id))
@@ -29,20 +29,19 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: "Not a team member" }, { status: 403 });
   }
 
-  const task = db.select().from(tasks).where(eq(tasks.id, id)).get();
+  const task = await db.select().from(tasks).where(eq(tasks.id, id)).get();
   if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
   if (task.teamId !== membership.teamId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  db.update(tasks)
+  await db.update(tasks)
     .set({
       status,
       completedAt: status === "done" ? new Date() : null,
     })
-    .where(eq(tasks.id, id))
-    .run();
+    .where(eq(tasks.id, id));
 
-  const updated = db.select().from(tasks).where(eq(tasks.id, id)).get()!;
+  const updated = (await db.select().from(tasks).where(eq(tasks.id, id)).get())!;
   return NextResponse.json({ task: updated });
 }

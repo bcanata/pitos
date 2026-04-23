@@ -18,7 +18,7 @@ export async function POST(
   const response: string = body?.response?.trim() ?? "";
   if (!response) return NextResponse.json({ error: "response is required" }, { status: 400 });
 
-  const membership = db
+  const membership = await db
     .select()
     .from(memberships)
     .where(eq(memberships.userId, user.id))
@@ -28,8 +28,7 @@ export async function POST(
     return NextResponse.json({ error: "Not a team member" }, { status: 403 });
   }
 
-  // Verify session belongs to team
-  const session = db
+  const session = await db
     .select()
     .from(judgeSessions)
     .where(eq(judgeSessions.id, sessionId))
@@ -57,7 +56,7 @@ export async function GET(
 
   const { sessionId } = await params;
 
-  const membership = db
+  const membership = await db
     .select()
     .from(memberships)
     .where(eq(memberships.userId, user.id))
@@ -67,7 +66,7 @@ export async function GET(
     return NextResponse.json({ error: "Not a team member" }, { status: 403 });
   }
 
-  const session = db
+  const session = await db
     .select()
     .from(judgeSessions)
     .where(eq(judgeSessions.id, sessionId))

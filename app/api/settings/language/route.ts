@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   const lang = (body.lang ?? "").toLowerCase().trim();
   if (!lang) return NextResponse.json({ error: "lang required" }, { status: 400 });
 
-  const membership = db
+  const membership = await db
     .select()
     .from(memberships)
     .where(eq(memberships.userId, user.id))
@@ -24,7 +24,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // For non-predefined languages, pre-translate now so the UI is ready on reload
   if (!PREDEFINED.has(lang)) {
     const translated = await translateBundle(lang);
     if (!translated) {
@@ -32,10 +31,9 @@ export async function POST(request: Request) {
     }
   }
 
-  db.update(teams)
+  await db.update(teams)
     .set({ language: lang })
-    .where(eq(teams.id, membership.teamId))
-    .run();
+    .where(eq(teams.id, membership.teamId));
 
   return NextResponse.json({ ok: true });
 }

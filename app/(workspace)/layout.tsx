@@ -15,10 +15,10 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   const { session, user: luciaUser } = await lucia.validateSession(sessionId);
   if (!session || !luciaUser) redirect("/auth");
 
-  const user = db.select().from(users).where(eq(users.id, luciaUser.id)).get();
+  const user = await db.select().from(users).where(eq(users.id, luciaUser.id)).get();
   if (!user) redirect("/auth");
 
-  const membership = db
+  const membership = await db
     .select()
     .from(memberships)
     .where(eq(memberships.userId, user.id))

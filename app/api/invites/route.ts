@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Valid email required" }, { status: 400 });
   }
 
-  const membership = db
+  const membership = await db
     .select()
     .from(memberships)
     .where(eq(memberships.userId, user.id))
@@ -30,17 +30,15 @@ export async function POST(request: Request) {
   const id = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-  db.insert(invites)
-    .values({
-      id,
-      teamId,
-      email,
-      role: "student",
-      token,
-      expiresAt,
-      invitedByUserId: user.id,
-    })
-    .run();
+  await db.insert(invites).values({
+    id,
+    teamId,
+    email,
+    role: "student",
+    token,
+    expiresAt,
+    invitedByUserId: user.id,
+  });
 
   const url = `${process.env.APP_URL ?? "http://localhost:3000"}/api/invites/accept?token=${token}`;
 
@@ -81,7 +79,7 @@ export async function GET() {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const membership = db
+  const membership = await db
     .select()
     .from(memberships)
     .where(eq(memberships.userId, user.id))
@@ -91,7 +89,7 @@ export async function GET() {
     return NextResponse.json({ invites: [] });
   }
 
-  const pending = db
+  const pending = await db
     .select()
     .from(invites)
     .where(and(eq(invites.teamId, membership.teamId), isNull(invites.acceptedAt)))

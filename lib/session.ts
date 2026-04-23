@@ -10,6 +10,6 @@ export async function getSession() {
   if (!sessionId) return { user: null, session: null };
   const { session, user: luciaUser } = await lucia.validateSession(sessionId);
   if (!session || !luciaUser) return { user: null, session: null };
-  const user = db.select().from(users).where(eq(users.id, luciaUser.id)).get() ?? null;
+  const user = (await db.select().from(users).where(eq(users.id, luciaUser.id)).get()) ?? null;
   return { user, session };
 }

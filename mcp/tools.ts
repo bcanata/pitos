@@ -21,8 +21,8 @@ import { eq, and, desc, gte } from "drizzle-orm";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-function requireTeam(teamId: string) {
-  const team = db
+async function requireTeam(teamId: string) {
+  const team = await db
     .select({ id: schema.teams.id, name: schema.teams.name, number: schema.teams.number })
     .from(schema.teams)
     .where(eq(schema.teams.id, teamId))
@@ -41,9 +41,9 @@ function parseSince(since: string | undefined): Date | undefined {
 // ─── tool implementations ──────────────────────────────────────────────────
 
 export async function getTeamContext(params: { team_id: string }) {
-  const team = requireTeam(params.team_id);
+  const team = await requireTeam(params.team_id);
 
-  const members = db
+  const members = await db
     .select({
       role: schema.memberships.role,
       subteam: schema.memberships.subteam,
@@ -54,13 +54,13 @@ export async function getTeamContext(params: { team_id: string }) {
     .where(eq(schema.memberships.teamId, params.team_id))
     .all();
 
-  const facts = db
+  const facts = await db
     .select({ evidenceQuality: schema.extractedFacts.evidenceQuality })
     .from(schema.extractedFacts)
     .where(eq(schema.extractedFacts.teamId, params.team_id))
     .all();
 
-  const decisions = db
+  const decisions = await db
     .select({
       id: schema.decisions.id,
       decision: schema.decisions.decision,
@@ -73,7 +73,7 @@ export async function getTeamContext(params: { team_id: string }) {
     .limit(5)
     .all();
 
-  const openTasks = db
+  const openTasks = await db
     .select({ status: schema.tasks.status })
     .from(schema.tasks)
     .where(eq(schema.tasks.teamId, params.team_id))
@@ -105,7 +105,7 @@ export async function listFacts(params: {
   since?: string;
   limit?: number;
 }) {
-  requireTeam(params.team_id);
+  await requireTeam(params.team_id);
   const since = parseSince(params.since);
   const limit = Math.min(params.limit ?? 50, 200);
 
@@ -139,7 +139,7 @@ export async function listDecisions(params: {
   since?: string;
   limit?: number;
 }) {
-  requireTeam(params.team_id);
+  await requireTeam(params.team_id);
   const since = parseSince(params.since);
   const limit = Math.min(params.limit ?? 50, 200);
 
@@ -167,7 +167,7 @@ export async function listTasks(params: {
   status?: "open" | "in_progress" | "done" | "blocked" | "cancelled";
   limit?: number;
 }) {
-  requireTeam(params.team_id);
+  await requireTeam(params.team_id);
   const limit = Math.min(params.limit ?? 50, 200);
 
   const wheres = [eq(schema.tasks.teamId, params.team_id)];
@@ -196,7 +196,7 @@ export async function listEntities(params: {
   kind?: "person" | "organization" | "event" | "location";
   limit?: number;
 }) {
-  requireTeam(params.team_id);
+  await requireTeam(params.team_id);
   const limit = Math.min(params.limit ?? 100, 500);
 
   const wheres = [eq(schema.entities.teamId, params.team_id)];
@@ -221,13 +221,13 @@ export async function listGeneratedDocuments(params: {
   doc_type?: "impact_narrative" | "season_recap" | "exit_pack" | "judge_prep";
   limit?: number;
 }) {
-  requireTeam(params.team_id);
+  await requireTeam(params.team_id);
   const limit = Math.min(params.limit ?? 20, 100);
 
   const wheres = [eq(schema.generatedDocuments.teamId, params.team_id)];
   if (params.doc_type) wheres.push(eq(schema.generatedDocuments.docType, params.doc_type));
 
-  const rows = db
+  const rows = await db
     .select({
       id: schema.generatedDocuments.id,
       title: schema.generatedDocuments.title,
@@ -254,8 +254,8 @@ export async function listGeneratedDocuments(params: {
 }
 
 export async function getDocument(params: { team_id: string; doc_id: string }) {
-  requireTeam(params.team_id);
-  const doc = db
+  await requireTeam(params.team_id);
+  const doc = await db
     .select()
     .from(schema.generatedDocuments)
     .where(
@@ -281,7 +281,7 @@ export async function listJudgeSessions(params: {
   team_id: string;
   award_type?: string;
 }) {
-  requireTeam(params.team_id);
+  await requireTeam(params.team_id);
   const wheres = [
     eq(schema.judgeSessions.teamId, params.team_id),
     eq(schema.judgeSessions.status, "completed"),
@@ -324,13 +324,13 @@ export async function listExitPacks(params: {
   team_id: string;
   status?: "collecting" | "review" | "finalized";
 }) {
-  requireTeam(params.team_id);
+  await requireTeam(params.team_id);
   const wheres = [eq(schema.exitPacks.teamId, params.team_id)];
   if (params.status) wheres.push(eq(schema.exitPacks.status, params.status));
 
   // NOTE: explicitly omits `answersCollected` (chat-like) and `questionsAsked`
   // (would leak the interview flow). Only the distilled `knowledgeSummary` leaves.
-  const rows = db
+  const rows = await db
     .select({
       id: schema.exitPacks.id,
       memberUserId: schema.exitPacks.memberUserId,
@@ -343,20 +343,23 @@ export async function listExitPacks(params: {
     .all();
 
   // Join member name but do NOT leak email.
-  return rows.map((r) => {
-    const member = db
-      .select({ name: schema.users.name })
-      .from(schema.users)
-      .where(eq(schema.users.id, r.memberUserId))
-      .get();
-    return {
-      id: r.id,
-      memberName: member?.name ?? null,
-      status: r.status,
-      knowledgeSummary: r.knowledgeSummary,
-      generatedAt: r.generatedAt,
-    };
-  });
+  const withNames = await Promise.all(
+    rows.map(async (r) => {
+      const member = await db
+        .select({ name: schema.users.name })
+        .from(schema.users)
+        .where(eq(schema.users.id, r.memberUserId))
+        .get();
+      return {
+        id: r.id,
+        memberName: member?.name ?? null,
+        status: r.status,
+        knowledgeSummary: r.knowledgeSummary,
+        generatedAt: r.generatedAt,
+      };
+    })
+  );
+  return withNames;
 }
 
 // ─── tool registry (name → {schema, handler}) ──────────────────────────────

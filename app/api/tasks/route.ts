@@ -8,10 +8,10 @@ export async function GET() {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const membership = db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
+  const membership = await db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
   if (!membership) return NextResponse.json({ error: "Not a team member" }, { status: 403 });
 
-  const teamTasks = db
+  const teamTasks = await db
     .select({
       id: tasks.id,
       teamId: tasks.teamId,
@@ -37,7 +37,7 @@ export async function GET() {
 
   const assigneeMap = new Map<string, string>();
   for (const uid of assigneeIds) {
-    const u = db.select({ name: users.name }).from(users).where(eq(users.id, uid)).get();
+    const u = await db.select({ name: users.name }).from(users).where(eq(users.id, uid)).get();
     if (u?.name) assigneeMap.set(uid, u.name);
   }
 
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const membership = db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
+  const membership = await db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
   if (!membership) return NextResponse.json({ error: "Not a team member" }, { status: 403 });
 
   const body = await req.json() as {
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
     createdAt: new Date(),
   };
 
-  db.insert(tasks).values(task).run();
+  await db.insert(tasks).values(task);
 
   return NextResponse.json({ task }, { status: 201 });
 }

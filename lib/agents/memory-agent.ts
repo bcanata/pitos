@@ -10,8 +10,7 @@ export async function runMemoryAgent(
   answer: string;
   citations: Array<{ messageId: string; channelName: string; preview: string }>;
 }> {
-  // 1. Get all channels for this team
-  const teamChannels = db
+  const teamChannels = await db
     .select()
     .from(channels)
     .where(eq(channels.teamId, teamId))
@@ -20,7 +19,6 @@ export async function runMemoryAgent(
   const channelMap = new Map(teamChannels.map((ch) => [ch.id, ch.name]));
   const channelIds = teamChannels.map((ch) => ch.id);
 
-  // 2. Get last 200 messages across all team channels
   let recentMessages: Array<{
     id: string;
     channelId: string;
@@ -30,9 +28,8 @@ export async function runMemoryAgent(
   }> = [];
 
   if (channelIds.length > 0) {
-    // Query messages for each channel and merge (SQLite doesn't support IN easily with drizzle here)
     for (const channelId of channelIds) {
-      const channelMsgs = db
+      const channelMsgs = await db
         .select({
           id: messages.id,
           channelId: messages.channelId,
@@ -48,7 +45,6 @@ export async function runMemoryAgent(
       recentMessages.push(...channelMsgs);
     }
 
-    // Sort all messages by createdAt desc, take top 200
     recentMessages.sort((a, b) => {
       const aTime = a.createdAt ? a.createdAt.getTime() : 0;
       const bTime = b.createdAt ? b.createdAt.getTime() : 0;
@@ -57,7 +53,6 @@ export async function runMemoryAgent(
     recentMessages = recentMessages.slice(0, 200);
   }
 
-  // 3. Filter client-side for messages containing query keywords
   const keywords = query
     .toLowerCase()
     .split(/\s+/)
@@ -72,8 +67,7 @@ export async function runMemoryAgent(
 
   const topMessages = relevantMessages.slice(0, 10);
 
-  // 4. Get extracted facts for this team
-  const facts = db
+  const facts = await db
     .select()
     .from(extractedFacts)
     .where(eq(extractedFacts.teamId, teamId))
@@ -81,7 +75,6 @@ export async function runMemoryAgent(
     .limit(20)
     .all();
 
-  // 5. Build context for the LLM
   const messageContext = topMessages
     .map((m) => {
       const chName = channelMap.get(m.channelId) ?? "unknown";
@@ -102,7 +95,6 @@ export async function runMemoryAgent(
     .filter(Boolean)
     .join("\n\n");
 
-  // 6. Call claude-opus-4-7
   const result = await anthropic.messages.create({
     model: "claude-opus-4-7",
     max_tokens: 1024,
@@ -121,7 +113,6 @@ export async function runMemoryAgent(
   const answerText =
     result.content[0].type === "text" ? result.content[0].text : "";
 
-  // 7. Parse [msg:ID] citations from the answer
   const citedIds = [...answerText.matchAll(/\[msg:([^\]]+)\]/g)].map(
     (m) => m[1]
   );

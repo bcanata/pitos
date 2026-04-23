@@ -9,7 +9,7 @@ export async function POST() {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const membership = db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
+  const membership = await db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
   if (!membership) return NextResponse.json({ error: "Not a team member" }, { status: 403 });
 
   const result = await startExitInterview(user.id, membership.teamId);

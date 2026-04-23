@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   const award: string = body?.award?.trim() ?? "";
   if (!award) return NextResponse.json({ error: "award is required" }, { status: 400 });
 
-  const membership = db
+  const membership = await db
     .select()
     .from(memberships)
     .where(eq(memberships.userId, user.id))
@@ -36,7 +36,7 @@ export async function GET() {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const membership = db
+  const membership = await db
     .select()
     .from(memberships)
     .where(eq(memberships.userId, user.id))
@@ -46,7 +46,7 @@ export async function GET() {
     return NextResponse.json({ error: "Not a team member" }, { status: 403 });
   }
 
-  const sessions = db
+  const sessions = await db
     .select()
     .from(judgeSessions)
     .where(eq(judgeSessions.teamId, membership.teamId))

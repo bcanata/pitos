@@ -9,10 +9,10 @@ export async function GET() {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const membership = db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
+  const membership = await db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
   if (!membership) return NextResponse.json({ error: "Not a team member" }, { status: 403 });
 
-  const doc = db
+  const doc = await db
     .select()
     .from(generatedDocuments)
     .where(eq(generatedDocuments.teamId, membership.teamId))
@@ -20,14 +20,12 @@ export async function GET() {
     .get();
 
   if (!doc || doc.docType !== "season_recap") {
-    // Check if any season_recap exists
-    const recap = db
+    const allDocs = await db
       .select()
       .from(generatedDocuments)
       .where(eq(generatedDocuments.teamId, membership.teamId))
-      .all()
-      .find((d) => d.docType === "season_recap");
-
+      .all();
+    const recap = allDocs.find((d) => d.docType === "season_recap");
     return NextResponse.json({ document: recap ?? null });
   }
 
@@ -38,10 +36,9 @@ export async function POST() {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const membership = db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
+  const membership = await db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
   if (!membership) return NextResponse.json({ error: "Not a team member" }, { status: 403 });
 
-  // Fire and forget
   runSeasonRecap(membership.teamId).catch(console.error);
 
   return NextResponse.json({

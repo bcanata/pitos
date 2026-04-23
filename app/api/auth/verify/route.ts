@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { magicLinks, users, invites, memberships } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { magicLinks, users } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { lucia } from "@/lib/auth";
 
 export async function GET(request: Request) {
@@ -9,28 +9,24 @@ export async function GET(request: Request) {
   const token = url.searchParams.get("token");
   if (!token) return NextResponse.redirect(new URL("/auth?error=missing", request.url));
 
-  const magicLink = db.select().from(magicLinks).where(eq(magicLinks.token, token)).get();
+  const magicLink = await db.select().from(magicLinks).where(eq(magicLinks.token, token)).get();
 
   if (!magicLink || magicLink.usedAt || magicLink.expiresAt < new Date()) {
     return NextResponse.redirect(new URL("/auth?error=invalid", request.url));
   }
 
-  // Find or create user
-  let user = db.select().from(users).where(eq(users.email, magicLink.email)).get();
+  let user = await db.select().from(users).where(eq(users.email, magicLink.email)).get();
   if (!user) {
     const id = crypto.randomUUID();
-    db.insert(users).values({ id, email: magicLink.email, createdAt: new Date() }).run();
-    user = db.select().from(users).where(eq(users.email, magicLink.email)).get()!;
+    await db.insert(users).values({ id, email: magicLink.email, createdAt: new Date() });
+    user = (await db.select().from(users).where(eq(users.email, magicLink.email)).get())!;
   }
 
-  // Create session BEFORE marking link used, so a failure doesn't burn the token
   const session = await lucia.createSession(user.id, {});
 
-  // Mark link as used only after session is successfully created
-  db.update(magicLinks).set({ usedAt: new Date() }).where(eq(magicLinks.token, token)).run();
+  await db.update(magicLinks).set({ usedAt: new Date() }).where(eq(magicLinks.token, token));
   const sessionCookie = lucia.createSessionCookie(session.id);
 
-  // If an invite token was passed along (from /auth?invite=...), redirect through accept
   const inviteToken = url.searchParams.get("invite");
   const redirectTarget = inviteToken
     ? new URL(`/api/invites/accept?token=${encodeURIComponent(inviteToken)}`, request.url)

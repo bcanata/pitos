@@ -18,7 +18,7 @@ export async function startJudgeSim(
   award: string
 ): Promise<{ sessionId: string; firstQuestion: string }> {
   const sessionId = crypto.randomUUID();
-  const team = db.select().from(teams).where(eq(teams.id, teamId)).get();
+  const team = await db.select().from(teams).where(eq(teams.id, teamId)).get();
   const lang = team?.language ?? "en";
 
   const result = await anthropic.messages.create({
@@ -40,17 +40,15 @@ export async function startJudgeSim(
     { role: "judge", content: firstQuestion },
   ];
 
-  db.insert(judgeSessions)
-    .values({
-      id: sessionId,
-      teamId,
-      startedByUserId: userId,
-      awardType: awardToEnum(award),
-      status: "in_progress",
-      transcript: transcript as unknown as null,
-      startedAt: new Date(),
-    })
-    .run();
+  await db.insert(judgeSessions).values({
+    id: sessionId,
+    teamId,
+    startedByUserId: userId,
+    awardType: awardToEnum(award),
+    status: "in_progress",
+    transcript: transcript as unknown as null,
+    startedAt: new Date(),
+  });
 
   return { sessionId, firstQuestion };
 }
@@ -59,7 +57,7 @@ export async function continueJudgeSim(
   sessionId: string,
   teamResponse: string
 ): Promise<{ judgeReply: string; isComplete: boolean; gapReport?: string }> {
-  const session = db
+  const session = await db
     .select()
     .from(judgeSessions)
     .where(eq(judgeSessions.id, sessionId))
@@ -69,10 +67,8 @@ export async function continueJudgeSim(
 
   const transcript = (session.transcript as JudgeSimMessage[] | null) ?? [];
 
-  // Add team's response
   transcript.push({ role: "team", content: teamResponse });
 
-  // Count how many team responses we have so far (after adding this one)
   const teamTurnCount = transcript.filter((m) => m.role === "team").length;
   const isComplete = teamTurnCount >= MAX_TURNS;
 
@@ -80,9 +76,7 @@ export async function continueJudgeSim(
   let gapReport: string | undefined;
 
   if (!isComplete) {
-    // Build conversation history for Claude
-    const claudeMessages: { role: "user" | "assistant"; content: string }[] =
-      [];
+    const claudeMessages: { role: "user" | "assistant"; content: string }[] = [];
     for (const msg of transcript) {
       if (msg.role === "judge") {
         claudeMessages.push({ role: "assistant", content: msg.content });
@@ -91,7 +85,7 @@ export async function continueJudgeSim(
       }
     }
 
-    const sessionTeam = db.select().from(teams).where(eq(teams.id, session.teamId ?? "")).get();
+    const sessionTeam = await db.select().from(teams).where(eq(teams.id, session.teamId ?? "")).get();
     const result = await anthropic.messages.create({
       model: "claude-opus-4-7",
       max_tokens: 512,
@@ -103,12 +97,10 @@ export async function continueJudgeSim(
       result.content[0].type === "text" ? result.content[0].text.trim() : "";
     transcript.push({ role: "judge", content: judgeReply });
 
-    db.update(judgeSessions)
+    await db.update(judgeSessions)
       .set({ transcript: transcript as unknown as null })
-      .where(eq(judgeSessions.id, sessionId))
-      .run();
+      .where(eq(judgeSessions.id, sessionId));
   } else {
-    // Generate gap report
     const conversationText = transcript
       .map((m) => `${m.role === "judge" ? "Judge" : "Team"}: ${m.content}`)
       .join("\n\n");
@@ -135,21 +127,19 @@ export async function continueJudgeSim(
       "Thank you for your time. The interview is now complete. Please review your gap report below.";
     transcript.push({ role: "judge", content: judgeReply });
 
-    db.update(judgeSessions)
+    await db.update(judgeSessions)
       .set({
         transcript: transcript as unknown as null,
         status: "completed",
         evidenceGaps: [gapReport] as unknown as null,
         completedAt: new Date(),
       })
-      .where(eq(judgeSessions.id, sessionId))
-      .run();
+      .where(eq(judgeSessions.id, sessionId));
   }
 
   return { judgeReply, isComplete, gapReport };
 }
 
-// Map display award name to DB enum value
 function awardToEnum(award: string): typeof judgeSessions.$inferInsert["awardType"] {
   const map: Record<string, typeof judgeSessions.$inferInsert["awardType"]> = {
     "Chairman's Award": "impact",
