@@ -1,6 +1,1 @@
-{
-  "outputFileTracingIncludes": {
-    "/api/**": ["./drizzle/**"],
-    "/app/**": ["./drizzle/**"]
-  }
-}
+{}
