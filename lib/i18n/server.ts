@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { teams, memberships, translationCache } from "@/db/schema";
+import { users, teams, memberships, translationCache } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { PREDEFINED, type Bundle } from "./index";
 
@@ -38,21 +38,13 @@ export function getBundleForLang(lang: string): Bundle {
 export async function getTeamBundle(
   userId: string
 ): Promise<{ lang: string; bundle: Bundle }> {
-  const membership = await db
+  const user = await db
     .select()
-    .from(memberships)
-    .where(eq(memberships.userId, userId))
+    .from(users)
+    .where(eq(users.id, userId))
     .get();
 
-  if (!membership) return { lang: "en", bundle: EN_BUNDLE };
-
-  const team = await db
-    .select()
-    .from(teams)
-    .where(eq(teams.id, membership.teamId))
-    .get();
-
-  const lang = team?.language ?? "en";
+  const lang = user?.language ?? "en";
 
   if (PREDEFINED.has(lang)) {
     return { lang, bundle: merge(lang) };

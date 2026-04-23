@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { teams, memberships } from "@/db/schema";
+import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { PREDEFINED } from "@/lib/i18n/index";
@@ -10,19 +10,9 @@ export async function POST(request: Request) {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await request.json() as { teamId: string; lang: string };
+  const body = await request.json() as { lang: string };
   const lang = (body.lang ?? "").toLowerCase().trim();
   if (!lang) return NextResponse.json({ error: "lang required" }, { status: 400 });
-
-  const membership = await db
-    .select()
-    .from(memberships)
-    .where(eq(memberships.userId, user.id))
-    .get();
-
-  if (!membership || membership.teamId !== body.teamId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   if (!PREDEFINED.has(lang)) {
     const translated = await translateBundle(lang);
@@ -31,9 +21,9 @@ export async function POST(request: Request) {
     }
   }
 
-  await db.update(teams)
+  await db.update(users)
     .set({ language: lang })
-    .where(eq(teams.id, membership.teamId));
+    .where(eq(users.id, user.id));
 
   return NextResponse.json({ ok: true });
 }

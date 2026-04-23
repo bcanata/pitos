@@ -100,8 +100,7 @@ export default async function SettingsPage() {
           {t(bundle, "settings.language")}
         </h2>
         <LanguageSettings
-          teamId={team?.id ?? ""}
-          currentLang={team?.language ?? "en"}
+          currentLang={user.language ?? "en"}
         />
       </section>
     </div>

@@ -7,6 +7,7 @@ export const users = sqliteTable("users", {
   email: text("email").notNull().unique(),
   name: text("name"),
   avatarUrl: text("avatar_url"),
+  language: text("language").notNull().default("en"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 

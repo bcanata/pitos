@@ -18,11 +18,10 @@ const LANGUAGES = [
 ];
 
 interface Props {
-  teamId: string;
   currentLang: string;
 }
 
-export default function LanguageSettings({ teamId, currentLang }: Props) {
+export default function LanguageSettings({ currentLang }: Props) {
   const t = useT();
   const router = useRouter();
   const [selected, setSelected] = useState(currentLang);
@@ -38,7 +37,7 @@ export default function LanguageSettings({ teamId, currentLang }: Props) {
       const res = await fetch("/api/settings/language", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamId, lang }),
+        body: JSON.stringify({ lang }),
       });
       if (!res.ok) {
         setStatus("error");
