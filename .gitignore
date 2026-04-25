@@ -46,6 +46,13 @@ cli/i18n/cache/*.json
 # vercel
 .vercel
 
+# demo PII scrub — contains real names/emails/UUIDs, never commit
+/scripts/anonymize-demo-mentors.ts
+/scripts/anon-scan.ts
+/scripts/anon-sample.ts
+/scripts/anon-confirm.ts
+/.anon-demo-backup.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
