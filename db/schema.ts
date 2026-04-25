@@ -133,6 +133,9 @@ export const tasks = sqliteTable("tasks", {
   title: text("title").notNull(),
   description: text("description"),
   assignedToUserId: text("assigned_to_user_id").references(() => users.id),
+  assignedToSubteam: text("assigned_to_subteam", {
+    enum: ["build", "programming", "outreach", "business"],
+  }),
   assignedByUserId: text("assigned_by_user_id").references(() => users.id),
   createdViaMessageId: text("created_via_message_id").references(
     () => messages.id

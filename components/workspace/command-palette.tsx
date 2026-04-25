@@ -7,6 +7,7 @@ import {
   FileText,
   Gavel,
   Hash,
+  KanbanSquare,
   LogOut,
   Search,
   Settings,
@@ -20,6 +21,7 @@ type Result =
 
 const COMMANDS: Array<{ key: string; label: string; href: string; icon: React.ReactNode }> = [
   { key: "ask", label: "Ask PitOS", href: "/app/ask", icon: <Search size={14} /> },
+  { key: "tasks", label: "Tasks (Kanban)", href: "/app/tasks", icon: <KanbanSquare size={14} /> },
   { key: "decisions", label: "Decisions log", href: "/app/decisions", icon: <BookMarked size={14} /> },
   { key: "judge-sim", label: "Judge Simulator", href: "/app/judge-sim", icon: <Gavel size={14} /> },
   { key: "exit-interview", label: "Exit interview", href: "/app/exit-interview", icon: <LogOut size={14} /> },

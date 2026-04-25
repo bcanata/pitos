@@ -7,6 +7,7 @@ import {
   FileText,
   Gavel,
   Hash,
+  KanbanSquare,
   LogOut,
   Search,
   Settings,
@@ -258,6 +259,9 @@ export default function ChannelSidebar({ team, channels, currentUserId }: Props)
       <div className="py-2 border-t border-border">
         <Link href="/app/ask" className={navLink("/app/ask", pathname)}>
           <Search size={14} />{t("sidebar.askPitOS")}
+        </Link>
+        <Link href="/app/tasks" className={navLink("/app/tasks", pathname)}>
+          <KanbanSquare size={14} />Tasks
         </Link>
         <Link href="/app/judge-sim" className={navLink("/app/judge-sim", pathname)}>
           <Gavel size={14} />{t("sidebar.judgeSim")}

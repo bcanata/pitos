@@ -141,6 +141,12 @@ const tools: ToolDef[] = [
           description:
             "Optional team member name the user asked to assign this to (e.g. 'Deniz Arslan', 'Ali'). Match against existing members; if no clear match, leave empty.",
         },
+        assignee_subteam: {
+          type: "string",
+          enum: ["build", "programming", "outreach", "business"],
+          description:
+            "Optional subteam to assign the task to instead of (or in addition to) a specific person. Use 'build' for mechanical/CAD/electrical work, 'programming' for software, 'outreach' for community/media/awards, 'business' for sponsors/finance/travel. Leave empty if the user didn't reference a subteam.",
+        },
         deadline: {
           type: "string",
           description:
@@ -412,6 +418,9 @@ async function execArchiveChannel(
   return { ok: true, name, channel_id: target.id };
 }
 
+const SUBTEAMS = ["build", "programming", "outreach", "business"] as const;
+type Subteam = (typeof SUBTEAMS)[number];
+
 async function execCreateTask(
   raw: unknown,
   ctx: MentionInput,
@@ -420,6 +429,7 @@ async function execCreateTask(
     title?: string;
     description?: string;
     assignee_name?: string;
+    assignee_subteam?: string;
     deadline?: string;
   };
   const title = (input.title ?? "")
@@ -436,6 +446,11 @@ async function execCreateTask(
       assigneeNote = `Requested assignee: ${input.assignee_name.trim()} (not matched)`;
     }
   }
+
+  const assignedToSubteam: Subteam | null =
+    input.assignee_subteam && SUBTEAMS.includes(input.assignee_subteam as Subteam)
+      ? (input.assignee_subteam as Subteam)
+      : null;
 
   let deadline: Date | null = null;
   if (input.deadline?.trim()) {
@@ -456,6 +471,7 @@ async function execCreateTask(
     title,
     description,
     assignedToUserId,
+    assignedToSubteam,
     assignedByUserId: ctx.userId,
     createdViaMessageId: ctx.messageId,
     deadline,
@@ -473,6 +489,7 @@ async function execCreateTask(
     task_id: taskId,
     title,
     assigned_to_user_id: assignedToUserId,
+    assigned_to_subteam: assignedToSubteam,
     deadline: deadline?.toISOString() ?? null,
   };
 }

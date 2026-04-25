@@ -15,6 +15,13 @@
       "when": 1776934168577,
       "tag": "0001_narrow_red_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1777156958912,
+      "tag": "0002_cute_storm",
+      "breakpoints": true
     }
   ]
 }
