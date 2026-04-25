@@ -1,6 +1,9 @@
 "use client";
 import { cn } from "@/lib/utils";
 import { Bot, Gavel } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import type { Components } from "react-markdown";
 
 interface Message {
   id: string;
@@ -19,17 +22,16 @@ const reflexLabels: Record<string, string> = {
   teach_redirect: "teach mode",
 };
 
-// Base domains that get a small badge in the rendered link. Mirrors (and is
-// allowed to drift from) the web_search allowlist in lib/agents/pitos-mention.ts —
-// this list is purely cosmetic.
+// Cosmetic badge map for FRC-authoritative domains. Mirrors (and is allowed
+// to drift from) the web_search allowlist in lib/agents/pitos-mention.ts.
 const FRC_DOMAINS: ReadonlyArray<{ host: string; label: string }> = [
   { host: "thebluealliance.com", label: "TBA" },
-  { host: "firstinspires.org", label: "FIRST" },
   { host: "frc-events.firstinspires.org", label: "FRC Events" },
+  { host: "firstinspires.org", label: "FIRST" },
   { host: "statbotics.io", label: "Statbotics" },
   { host: "chiefdelphi.com", label: "Chief Delphi" },
-  { host: "wpilib.org", label: "WPILib" },
   { host: "docs.wpilib.org", label: "WPILib Docs" },
+  { host: "wpilib.org", label: "WPILib" },
   { host: "github.com", label: "GitHub" },
   { host: "andymark.com", label: "AndyMark" },
   { host: "revrobotics.com", label: "REV" },
@@ -53,62 +55,96 @@ function frcLabelForUrl(raw: string): string | null {
   }
 }
 
-const URL_RE = /(https?:\/\/[^\s<>"']+)/g;
-const TRAILING_PUNCT_RE = /[.,;:!?)\]>"'—]+$/;
-
-type Seg = { type: "text"; text: string } | { type: "link"; href: string; label: string | null };
-
-function linkify(content: string): Seg[] {
-  const out: Seg[] = [];
-  let lastIndex = 0;
-  for (const m of content.matchAll(URL_RE)) {
-    const raw = m[0];
-    const start = m.index ?? 0;
-    if (start > lastIndex) {
-      out.push({ type: "text", text: content.slice(lastIndex, start) });
+// Markdown components — minimal styling so it inherits the bubble theme.
+// The two key wins are: (1) **bold** + *italic* + lists + code blocks render,
+// (2) auto-linked URLs get an FRC domain badge.
+const MD_COMPONENTS: Components = {
+  a({ href, children }) {
+    const url = typeof href === "string" ? href : "";
+    const label = url ? frcLabelForUrl(url) : null;
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="text-primary underline decoration-primary/40 hover:decoration-primary break-all"
+      >
+        {children}
+        {label && (
+          <span className="ml-1 inline-flex items-center rounded bg-primary/15 px-1 py-0 text-[10px] font-medium text-primary align-middle">
+            {label}
+          </span>
+        )}
+      </a>
+    );
+  },
+  p({ children }) {
+    return <p className="leading-relaxed">{children}</p>;
+  },
+  ul({ children }) {
+    return <ul className="list-disc pl-5 space-y-0.5 my-1">{children}</ul>;
+  },
+  ol({ children }) {
+    return <ol className="list-decimal pl-5 space-y-0.5 my-1">{children}</ol>;
+  },
+  li({ children }) {
+    return <li className="leading-relaxed">{children}</li>;
+  },
+  h1({ children }) {
+    return <h3 className="font-semibold text-base mt-1.5 mb-1">{children}</h3>;
+  },
+  h2({ children }) {
+    return <h3 className="font-semibold text-sm mt-1.5 mb-1">{children}</h3>;
+  },
+  h3({ children }) {
+    return <h4 className="font-semibold text-sm mt-1 mb-0.5">{children}</h4>;
+  },
+  h4({ children }) {
+    return <h5 className="font-semibold text-xs mt-1 mb-0.5">{children}</h5>;
+  },
+  strong({ children }) {
+    return <strong className="font-semibold text-foreground">{children}</strong>;
+  },
+  em({ children }) {
+    return <em className="italic">{children}</em>;
+  },
+  blockquote({ children }) {
+    return (
+      <blockquote className="border-l-2 border-border pl-3 my-1 text-muted-foreground italic">
+        {children}
+      </blockquote>
+    );
+  },
+  code({ children, className }) {
+    const isBlock = (className ?? "").includes("language-");
+    if (isBlock) {
+      return (
+        <code className="block w-full text-xs font-mono whitespace-pre overflow-x-auto rounded bg-muted/70 p-2 my-1">
+          {children}
+        </code>
+      );
     }
-    // Strip trailing punctuation from the URL match so sentence-ending dots
-    // don't get pulled into the href.
-    const trail = raw.match(TRAILING_PUNCT_RE)?.[0] ?? "";
-    const href = trail ? raw.slice(0, -trail.length) : raw;
-    out.push({ type: "link", href, label: frcLabelForUrl(href) });
-    if (trail) out.push({ type: "text", text: trail });
-    lastIndex = start + raw.length;
-  }
-  if (lastIndex < content.length) {
-    out.push({ type: "text", text: content.slice(lastIndex) });
-  }
-  return out;
-}
+    return (
+      <code className="text-xs font-mono rounded bg-muted/70 px-1 py-0.5">
+        {children}
+      </code>
+    );
+  },
+  pre({ children }) {
+    return <pre className="my-1">{children}</pre>;
+  },
+  hr() {
+    return <hr className="my-2 border-border" />;
+  },
+};
 
 function MessageBody({ content }: { content: string }) {
-  const segs = linkify(content);
-  if (segs.length === 1 && segs[0].type === "text") {
-    return <span className="whitespace-pre-wrap">{segs[0].text}</span>;
-  }
   return (
-    <span className="whitespace-pre-wrap">
-      {segs.map((seg, i) =>
-        seg.type === "text" ? (
-          <span key={i}>{seg.text}</span>
-        ) : (
-          <a
-            key={i}
-            href={seg.href}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="text-primary underline decoration-primary/40 hover:decoration-primary break-all"
-          >
-            {seg.href}
-            {seg.label && (
-              <span className="ml-1 inline-flex items-center rounded bg-primary/15 px-1 py-0 text-[10px] font-medium text-primary align-middle">
-                {seg.label}
-              </span>
-            )}
-          </a>
-        ),
-      )}
-    </span>
+    <div className="text-sm text-foreground leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&>p]:my-1">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
+        {content}
+      </ReactMarkdown>
+    </div>
   );
 }
 
@@ -139,9 +175,9 @@ export default function MessageBubble({ message, currentUserId }: Props) {
             </span>
           )}
         </div>
-        <p className="text-sm text-foreground leading-relaxed pl-5">
+        <div className="pl-5">
           <MessageBody content={message.content} />
-        </p>
+        </div>
       </div>
     );
   }
@@ -162,9 +198,7 @@ export default function MessageBubble({ message, currentUserId }: Props) {
         </span>
         <span className="text-xs text-muted-foreground">{time}</span>
       </div>
-      <p className="text-sm text-foreground leading-relaxed">
-        <MessageBody content={message.content} />
-      </p>
+      <MessageBody content={message.content} />
     </div>
   );
 }

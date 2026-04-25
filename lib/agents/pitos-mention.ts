@@ -857,19 +857,51 @@ Caller role: ${input.role}. What do you do?`;
     output: ToolOutput;
   }> = [];
 
+  // Stable id we use the *whole* invocation. The client builds a placeholder
+  // message under this id from the first delta it receives, then progressively
+  // appends content as more deltas land. The final DB insert reuses the id so
+  // the SSE poll fallback (cross-instance) never duplicates it.
+  const streamMsgId = crypto.randomUUID();
   let tokens = 0;
   let finalText = "";
   let status: "completed" | "failed" = "completed";
+  let firstChunkSent = false;
+
+  const emitChunk = (delta: string) => {
+    if (!delta) return;
+    const evt = {
+      type: "message_chunk" as const,
+      data: {
+        id: streamMsgId,
+        channelId: input.channelId,
+        delta,
+        first: !firstChunkSent,
+        senderName: "PitOS",
+      },
+    };
+    firstChunkSent = true;
+    notifyChannel(input.channelId, evt);
+    notifyTeam(input.teamId, evt);
+  };
 
   try {
     for (let step = 0; step < 6; step++) {
-      const result = await anthropic.messages.create({
+      const stream = anthropic.messages.stream({
         model: "claude-opus-4-7",
         max_tokens: 2048,
         system: systemPrompt,
         tools,
         messages: conversation,
       });
+
+      // Capture text deltas as they arrive. tool_use deltas don't fire as
+      // text, so this only emits human-readable content.
+      stream.on("text", (delta) => {
+        finalText += delta;
+        emitChunk(delta);
+      });
+
+      const result = await stream.finalMessage();
       tokens +=
         (result.usage?.input_tokens ?? 0) + (result.usage?.output_tokens ?? 0);
 
@@ -891,15 +923,6 @@ Caller role: ${input.role}. What do you do?`;
         conversation.push({ role: "user", content: toolResults });
         continue;
       }
-
-      // Server-side tools (web_search) can produce multiple text blocks per
-      // response: pre-search reasoning, then post-search synthesis. Join
-      // them all rather than taking only the first.
-      finalText = result.content
-        .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
-        .map((b) => b.text)
-        .join("\n\n")
-        .trim();
       break;
     }
   } catch (err) {
@@ -911,7 +934,7 @@ Caller role: ${input.role}. What do you do?`;
   if (!finalText) finalText = "(no response)";
 
   const agentMessage = {
-    id: crypto.randomUUID(),
+    id: streamMsgId,
     channelId: input.channelId,
     userId: null as string | null,
     content: finalText,
@@ -921,6 +944,9 @@ Caller role: ${input.role}. What do you do?`;
     createdAt: new Date(),
   };
   await db.insert(messages).values(agentMessage);
+  // Final message event — client dedups against the streamed placeholder
+  // (same id) so this is a no-op for streaming clients but ensures
+  // poll-fallback / late-joining clients still get the full content.
   const replyEvent = { type: "message" as const, data: { ...agentMessage, senderName: "PitOS" } };
   notifyChannel(input.channelId, replyEvent);
   notifyTeam(input.teamId, replyEvent);

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, Hash, Send } from "lucide-react";
+import { ArrowDown, Bot, Hash, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import MessageBubble from "./message-bubble";
@@ -25,6 +25,10 @@ interface Props {
   currentUserId: string | null;
 }
 
+// Pattern that matches "@pitos" in the user's outgoing message — same as
+// MENTION_PATTERN in lib/agents/pitos-mention.ts.
+const PITOS_MENTION = /(?:^|[^a-z0-9])@pitos\b/i;
+
 export default function ChannelView({ channel, initialMessages, currentUserId }: Props) {
   const t = useT();
   const router = useRouter();
@@ -32,6 +36,9 @@ export default function ChannelView({ channel, initialMessages, currentUserId }:
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
+  // Track when the user has just mentioned @pitos and we're awaiting a reply.
+  // Cleared when an agent-generated message arrives, or after a 30s safety timeout.
+  const [pitosThinkingSince, setPitosThinkingSince] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -42,15 +49,67 @@ export default function ChannelView({ channel, initialMessages, currentUserId }:
       const { type, data } = JSON.parse(e.data);
       if (type === "message") {
         setMessages(prev => {
-          if (prev.find(m => m.id === data.id)) return prev;
+          // Dedup by id — covers both fresh messages and the final-complete
+          // event for a stream we already built up via message_chunk.
+          const existing = prev.find(m => m.id === data.id);
+          if (existing) {
+            // Replace the placeholder/streamed version with the final
+            // server-truth (same content but with metadata + canonical fields).
+            return prev.map(m => (m.id === data.id ? { ...data, content: m.content && m.content.length > data.content.length ? m.content : data.content } : m));
+          }
           return [...prev, data];
         });
+        // Clear the "PitOS is thinking" indicator the moment any agent message
+        // for this channel arrives — channel-agent reflexes count too.
+        if (data.agentGenerated) {
+          setPitosThinkingSince(null);
+        }
+      } else if (type === "message_chunk") {
+        // Streaming @pitos reply. Build a placeholder on the first delta and
+        // append subsequent deltas as they arrive. Client dedupes by id so
+        // the final `message` event with the same id is idempotent.
+        const { id, delta, channelId: chId, senderName, first } = data as {
+          id: string;
+          channelId: string;
+          delta: string;
+          senderName?: string | null;
+          first?: boolean;
+        };
+        if (chId !== channel.id) return;
+        setMessages(prev => {
+          const existing = prev.find(m => m.id === id);
+          if (existing) {
+            return prev.map(m => (m.id === id ? { ...m, content: m.content + delta } : m));
+          }
+          return [
+            ...prev,
+            {
+              id,
+              channelId: chId,
+              userId: null,
+              content: delta,
+              agentGenerated: true,
+              agentType: "pitos-mention",
+              juryReflexKind: null,
+              senderName: senderName ?? "PitOS",
+              createdAt: new Date().toISOString(),
+            },
+          ];
+        });
+        if (first) setPitosThinkingSince(null);
       } else if (type === "channels_updated") {
         router.refresh();
       }
     };
     return () => es.close();
   }, [channel.id, router]);
+
+  // Safety: never let the thinking indicator linger more than 30s.
+  useEffect(() => {
+    if (pitosThinkingSince === null) return;
+    const t = setTimeout(() => setPitosThinkingSince(null), 30_000);
+    return () => clearTimeout(t);
+  }, [pitosThinkingSince]);
 
   // Mark this channel read on mount + when the tab becomes visible.
   useEffect(() => {
@@ -127,6 +186,7 @@ export default function ChannelView({ channel, initialMessages, currentUserId }:
     e.preventDefault();
     const content = input.trim();
     if (!content || sending) return;
+    const mentionsPitos = PITOS_MENTION.test(content);
     setSending(true);
     setInput("");
     try {
@@ -142,6 +202,7 @@ export default function ChannelView({ channel, initialMessages, currentUserId }:
           if (prev.find(m => m.id === message.id)) return prev;
           return [...prev, { ...message, createdAt: new Date(message.createdAt).toISOString() }];
         });
+        if (mentionsPitos) setPitosThinkingSince(Date.now());
       }
     } finally {
       setSending(false);
@@ -178,6 +239,20 @@ export default function ChannelView({ channel, initialMessages, currentUserId }:
           {messages.map(m => (
             <MessageBubble key={m.id} message={m} currentUserId={currentUserId} />
           ))}
+          {pitosThinkingSince !== null && (
+            <div className="px-3 py-2.5 rounded-lg border-l-[3px] border-primary/60 bg-primary/5 ml-0 animate-pulse">
+              <div className="flex items-center gap-2">
+                <Bot size={13} className="text-primary shrink-0" />
+                <span className="text-xs font-semibold text-primary">PitOS</span>
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: "300ms" }} />
+                </span>
+                <span className="text-xs text-muted-foreground italic">thinking…</span>
+              </div>
+            </div>
+          )}
         </div>
         <div ref={bottomRef} />
         {showScrollDown && (
