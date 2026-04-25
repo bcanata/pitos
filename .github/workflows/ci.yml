@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # Cancel an in-progress run on the same ref when a new push lands.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: lint · typecheck · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      # next build evaluates module-level code in some routes; provide
+      # placeholder env so it doesn't crash on import. None of these are
+      # secrets — they're stand-ins for `process.env.*` reads at build time.
+      ANTHROPIC_API_KEY: ci-placeholder-key
+      AUTH_SECRET: ci-placeholder-secret-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      APP_URL: http://localhost:3000
+      DATABASE_URL: file:./pitos.db
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
