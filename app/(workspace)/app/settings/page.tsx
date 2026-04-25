@@ -57,9 +57,9 @@ export default async function SettingsPage() {
   }));
 
   return (
-    <div className="h-full overflow-y-auto">
-    <div className="max-w-2xl mx-auto p-6 space-y-8">
-      <h1 className="text-xl font-semibold">{t(bundle, "settings.title")}</h1>
+    <div className="flex flex-col h-full overflow-y-auto">
+      <div className="max-w-2xl w-full mx-auto p-6 space-y-8">
+        <h1 className="text-xl font-semibold">{t(bundle, "settings.title")}</h1>
 
       <section className="space-y-3">
         <h2 className="text-base font-medium border-b border-border pb-2">Team info</h2>
