@@ -15,7 +15,7 @@ import {
   teams,
   users,
 } from "@/db/schema";
-import { notifyChannel } from "@/lib/sse";
+import { notifyChannel, notifyTeam } from "@/lib/sse";
 import { runMemoryAgent } from "@/lib/agents/memory-agent";
 
 export type MembershipRole = "lead_mentor" | "mentor" | "captain" | "student";
@@ -328,7 +328,9 @@ async function execCreateChannel(
     });
   }
 
-  notifyChannel(ctx.channelId, { type: "channels_updated", data: { action: "created", name } });
+  const createdEvent = { type: "channels_updated" as const, data: { action: "created" as const, id: channelId, name, type } };
+  notifyChannel(ctx.channelId, createdEvent);
+  notifyTeam(ctx.teamId, createdEvent);
 
   return {
     ok: true,
@@ -363,7 +365,9 @@ async function execArchiveChannel(
     .update(channels)
     .set({ archivedAt: new Date() })
     .where(eq(channels.id, target.id));
-  notifyChannel(ctx.channelId, { type: "channels_updated", data: { action: "archived", name } });
+  const archivedEvent = { type: "channels_updated" as const, data: { action: "archived" as const, id: target.id, name } };
+  notifyChannel(ctx.channelId, archivedEvent);
+  notifyTeam(ctx.teamId, archivedEvent);
   return { ok: true, name, channel_id: target.id };
 }
 
@@ -419,7 +423,9 @@ async function execCreateTask(
     createdAt: now,
   };
   await db.insert(tasks).values(task);
-  notifyChannel(ctx.channelId, { type: "task_created", data: task });
+  const taskCreatedEvent = { type: "task_created" as const, data: task };
+  notifyChannel(ctx.channelId, taskCreatedEvent);
+  notifyTeam(ctx.teamId, taskCreatedEvent);
 
   return {
     ok: true,
@@ -479,11 +485,12 @@ async function execUpdateTaskStatus(
     .set({ status, completedAt })
     .where(eq(tasks.id, target.id));
 
-  // TODO: wire task_panel.tsx to subscribe to task_updated SSE; currently it polls.
-  notifyChannel(ctx.channelId, {
-    type: "task_updated",
-    data: { id: target.id, status, completedAt },
-  });
+  const taskUpdatedEvent = {
+    type: "task_updated" as const,
+    data: { id: target.id, channelId: target.channelId, status, completedAt },
+  };
+  notifyChannel(ctx.channelId, taskUpdatedEvent);
+  notifyTeam(ctx.teamId, taskUpdatedEvent);
 
   return {
     ok: true,
@@ -521,11 +528,12 @@ async function execCreateDecision(
     recordedAt: now,
   });
 
-  // TODO: wire a decisions-panel SSE subscriber when one exists.
-  notifyChannel(ctx.channelId, {
-    type: "decision_created",
+  const decisionEvent = {
+    type: "decision_created" as const,
     data: { id, decision, decidedAt: now },
-  });
+  };
+  notifyChannel(ctx.channelId, decisionEvent);
+  notifyTeam(ctx.teamId, decisionEvent);
 
   return { ok: true, decision_id: id, decision };
 }
@@ -573,7 +581,9 @@ async function execPostMessageToChannel(
     createdAt: new Date(),
   };
   await db.insert(messages).values(message);
-  notifyChannel(target.id, { type: "message", data: message });
+  const xpostEvent = { type: "message" as const, data: { ...message, senderName: "PitOS" } };
+  notifyChannel(target.id, xpostEvent);
+  notifyTeam(ctx.teamId, xpostEvent);
 
   return { ok: true, message_id: msgId, channel: target.name };
 }
@@ -690,11 +700,12 @@ async function execUpdateTeamInfo(
   }
 
   await db.update(teams).set(updates).where(eq(teams.id, ctx.teamId));
-  // TODO: wire sidebar header SSE consumer for team_updated.
-  notifyChannel(ctx.channelId, {
-    type: "team_updated",
+  const teamUpdatedEvent = {
+    type: "team_updated" as const,
     data: { id: ctx.teamId, ...updates },
-  });
+  };
+  notifyChannel(ctx.channelId, teamUpdatedEvent);
+  notifyTeam(ctx.teamId, teamUpdatedEvent);
   return { ok: true, ...updates };
 }
 
@@ -717,11 +728,12 @@ async function execUpdateChannelDescription(
     return { ok: false, error: "Description is required." };
 
   await db.update(channels).set({ description }).where(eq(channels.id, target.id));
-  // TODO: wire sidebar tooltip SSE consumer for channel_updated.
-  notifyChannel(ctx.channelId, {
-    type: "channel_updated",
-    data: { id: target.id, description },
-  });
+  const channelUpdatedEvent = {
+    type: "channel_updated" as const,
+    data: { id: target.id, name: target.name, description },
+  };
+  notifyChannel(ctx.channelId, channelUpdatedEvent);
+  notifyTeam(ctx.teamId, channelUpdatedEvent);
   return { ok: true, channel_id: target.id, name: target.name, description };
 }
 
@@ -859,10 +871,14 @@ Caller role: ${input.role}. What do you do?`;
     createdAt: new Date(),
   };
   await db.insert(messages).values(agentMessage);
-  notifyChannel(input.channelId, { type: "message", data: agentMessage });
+  const replyEvent = { type: "message" as const, data: { ...agentMessage, senderName: "PitOS" } };
+  notifyChannel(input.channelId, replyEvent);
+  notifyTeam(input.teamId, replyEvent);
 
+  const runId = crypto.randomUUID();
+  const durationMs = Date.now() - start;
   await db.insert(agentRuns).values({
-    id: crypto.randomUUID(),
+    id: runId,
     teamId: input.teamId,
     trigger: `mention:${input.messageId}`,
     agentType: "pitos-mention",
@@ -875,7 +891,21 @@ Caller role: ${input.role}. What do you do?`;
     output: finalText,
     toolCalls: toolCallTrace as unknown as null,
     tokensUsed: tokens,
-    durationMs: Date.now() - start,
+    durationMs,
     createdAt: new Date(),
+  });
+  notifyTeam(input.teamId, {
+    type: "agent_run",
+    data: {
+      id: runId,
+      channelId: input.channelId,
+      channelName: input.channelName,
+      agentType: "pitos-mention",
+      action: toolCallTrace.length
+        ? toolCallTrace.map((c) => c.name).join(", ")
+        : "reply",
+      reasoning: finalText.slice(0, 200),
+      durationMs,
+    },
   });
 }

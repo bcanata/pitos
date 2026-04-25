@@ -2,7 +2,7 @@ import { anthropic } from "@/lib/anthropic";
 import { db } from "@/db";
 import { messages, teams, channels, agentRuns, tasks, users } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
-import { notifyChannel } from "@/lib/sse";
+import { notifyChannel, notifyTeam } from "@/lib/sse";
 import {
   MENTION_PATTERN,
   runMentionAgent,
@@ -127,6 +127,7 @@ Respond with a JSON object:
       };
       await db.insert(messages).values(agentMessage);
       notifyChannel(channelId, { type: "message", data: agentMessage });
+      notifyTeam(teamId, { type: "message", data: agentMessage });
 
     } else if (parsed?.action === "create_task" && parsed.task_title) {
       const taskId = crypto.randomUUID();
@@ -154,11 +155,15 @@ Respond with a JSON object:
       };
       await db.insert(messages).values(confirmMessage);
       notifyChannel(channelId, { type: "message", data: confirmMessage });
+      notifyTeam(teamId, { type: "message", data: confirmMessage });
       notifyChannel(channelId, { type: "task_created", data: task });
+      notifyTeam(teamId, { type: "task_created", data: task });
     }
 
+    const runId = crypto.randomUUID();
+    const durationMs = Date.now() - start;
     await db.insert(agentRuns).values({
-      id: crypto.randomUUID(),
+      id: runId,
       teamId,
       trigger: `message:${messageId}`,
       agentType: "channel",
@@ -166,23 +171,50 @@ Respond with a JSON object:
       inputContext: { channelId, messageId, messageCount: recentMessages.length } as unknown as null,
       output,
       tokensUsed: result.usage.input_tokens + result.usage.output_tokens,
-      durationMs: Date.now() - start,
+      durationMs,
       createdAt: new Date(),
+    });
+    notifyTeam(teamId, {
+      type: "agent_run",
+      data: {
+        id: runId,
+        channelId,
+        channelName: channel.name,
+        agentType: "channel",
+        action: parsed?.action ?? "no_action",
+        juryReflexKind: parsed?.jury_reflex_kind ?? null,
+        reasoning: parsed?.reasoning ?? null,
+        durationMs,
+      },
     });
 
   } catch (err) {
     console.error("[agent:channel] error:", err);
 
+    const runId = crypto.randomUUID();
+    const durationMs = Date.now() - start;
     await db.insert(agentRuns).values({
-      id: crypto.randomUUID(),
+      id: runId,
       teamId,
       trigger: `message:${messageId}`,
       agentType: "channel",
       status: "failed",
       inputContext: { channelId, messageId, messageCount: recentMessages.length } as unknown as null,
       output,
-      durationMs: Date.now() - start,
+      durationMs,
       createdAt: new Date(),
+    });
+    notifyTeam(teamId, {
+      type: "agent_run",
+      data: {
+        id: runId,
+        channelId,
+        channelName: channel.name,
+        agentType: "channel",
+        action: "failed",
+        reasoning: String(err).slice(0, 200),
+        durationMs,
+      },
     });
   }
 }

@@ -8,9 +8,10 @@ import { useT } from "@/lib/i18n/client";
 
 interface Props {
   channelId: string;
+  teamId: string;
 }
 
-export default function RightPanel({ channelId }: Props) {
+export default function RightPanel({ channelId, teamId }: Props) {
   const t = useT();
   const [expanded, setExpanded] = useState(true);
 
@@ -35,12 +36,12 @@ export default function RightPanel({ channelId }: Props) {
         >
           {/* Tasks section */}
           <div className="shrink-0 max-h-72 overflow-y-auto border-b border-border">
-            <TaskPanel channelId={channelId} />
+            <TaskPanel channelId={channelId} teamId={teamId} />
           </div>
 
           {/* Agent activity section — fills remaining height */}
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-            <AgentActivity channelId={channelId} />
+            <AgentActivity channelId={channelId} teamId={teamId} />
           </div>
         </div>
       )}

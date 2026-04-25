@@ -17,6 +17,7 @@ interface AgentRun {
 
 interface Props {
   channelId: string;
+  teamId: string;
 }
 
 function parseAction(run: AgentRun): string {
@@ -130,7 +131,7 @@ function RunRow({ run }: { run: AgentRun }) {
   );
 }
 
-export default function AgentActivity({ channelId }: Props) {
+export default function AgentActivity({ channelId, teamId }: Props) {
   const t = useT();
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,9 +149,42 @@ export default function AgentActivity({ channelId }: Props) {
 
   useEffect(() => {
     fetchRuns();
-    const interval = setInterval(fetchRuns, 10_000);
-    return () => clearInterval(interval);
   }, [fetchRuns]);
+
+  // Realtime: live agent_run events on the team stream, filtered to this channel.
+  useEffect(() => {
+    const es = new EventSource(`/api/teams/${teamId}/sse`);
+    es.onmessage = (e) => {
+      let parsed: { type?: string; data?: unknown } = {};
+      try { parsed = JSON.parse(e.data); } catch { return; }
+      if (parsed.type !== "agent_run") return;
+      const run = parsed.data as {
+        id: string;
+        channelId: string;
+        action: string | null;
+        reasoning: string | null;
+        durationMs: number | null;
+        juryReflexKind?: string | null;
+      };
+      if (run.channelId !== channelId) return;
+      setRuns((prev) => {
+        if (prev.find((r) => r.id === run.id)) return prev;
+        return [
+          {
+            id: run.id,
+            action: run.action,
+            juryReflexKind: run.juryReflexKind ?? null,
+            reasoning: run.reasoning,
+            output: null,
+            createdAt: new Date().toISOString(),
+            durationMs: run.durationMs,
+          },
+          ...prev,
+        ].slice(0, 30);
+      });
+    };
+    return () => es.close();
+  }, [teamId, channelId]);
 
   return (
     <div className="flex flex-col min-h-0">

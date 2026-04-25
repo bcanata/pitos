@@ -50,6 +50,29 @@ export default function ChannelView({ channel, initialMessages, currentUserId }:
     return () => es.close();
   }, [channel.id, router]);
 
+  // Mark this channel read on mount + when the tab becomes visible.
+  useEffect(() => {
+    const markRead = () => {
+      fetch(`/api/channels/${channel.id}/read`, { method: "POST" }).catch(() => {});
+    };
+    markRead();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") markRead();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [channel.id]);
+
+  // Bump read each time we receive a fresh message while viewing the channel.
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (document.visibilityState !== "visible") return;
+    const t = setTimeout(() => {
+      fetch(`/api/channels/${channel.id}/read`, { method: "POST" }).catch(() => {});
+    }, 250);
+    return () => clearTimeout(t);
+  }, [messages.length, channel.id]);
+
   // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

@@ -3,7 +3,7 @@ import { getSession } from "@/lib/session";
 import { db } from "@/db";
 import { messages, channels, memberships, users } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
-import { notifyChannel } from "@/lib/sse";
+import { notifyChannel, notifyTeam } from "@/lib/sse";
 import { isDemoUser } from "@/lib/demo";
 
 type Params = { params: Promise<{ channelId: string }> };
@@ -64,7 +64,9 @@ export async function POST(req: Request, { params }: Params) {
 
   triggerChannelAgent(channelId, message.id, membership.teamId, membership.role).catch(console.error);
 
-  notifyChannel(channelId, { type: "message", data: { ...message, senderName: user.name } });
+  const eventData = { ...message, senderName: user.name };
+  notifyChannel(channelId, { type: "message", data: eventData });
+  notifyTeam(membership.teamId, { type: "message", data: eventData });
 
   return NextResponse.json({ message });
 }

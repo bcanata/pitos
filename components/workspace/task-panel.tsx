@@ -20,6 +20,7 @@ interface Task {
 
 interface Props {
   channelId: string;
+  teamId: string;
 }
 
 type StatusConfig = {
@@ -56,7 +57,7 @@ const STATUS_CONFIG: Record<Task["status"], StatusConfig> = {
   },
 };
 
-export default function TaskPanel({ channelId }: Props) {
+export default function TaskPanel({ channelId, teamId }: Props) {
   const t = useT();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +81,29 @@ export default function TaskPanel({ channelId }: Props) {
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  // Realtime: react to task_created / task_updated on the team SSE stream.
+  useEffect(() => {
+    const es = new EventSource(`/api/teams/${teamId}/sse`);
+    es.onmessage = (e) => {
+      let parsed: { type?: string; data?: unknown } = {};
+      try { parsed = JSON.parse(e.data); } catch { return; }
+      const { type, data } = parsed;
+      if (type === "task_created") {
+        const task = data as Task;
+        if (task.channelId !== channelId && task.channelId !== null) return;
+        setTasks((prev) => (prev.find((t) => t.id === task.id) ? prev : [task, ...prev]));
+      } else if (type === "task_updated") {
+        const upd = data as { id: string; channelId?: string | null; status: Task["status"]; completedAt?: string | null };
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === upd.id ? { ...t, status: upd.status } : t,
+          ),
+        );
+      }
+    };
+    return () => es.close();
+  }, [teamId, channelId]);
 
   async function markDone(taskId: string) {
     setMarkingDone(taskId);

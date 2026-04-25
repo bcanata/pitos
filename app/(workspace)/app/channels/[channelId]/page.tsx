@@ -24,7 +24,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ channe
       <div className="flex-1 overflow-hidden">
         <ChannelView channel={channel} initialMessages={initialMessages} currentUserId={membership?.userId ?? null} />
       </div>
-      <RightPanel channelId={channelId} />
+      <RightPanel channelId={channelId} teamId={membership.teamId} />
     </div>
   );
 }

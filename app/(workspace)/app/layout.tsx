@@ -11,12 +11,16 @@ export default async function WorkspaceAppLayout({ children }: { children: React
 
   if (!res.ok) redirect("/auth");
 
-  const { team, channels } = await res.json();
+  const { team, channels, membership } = await res.json();
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       {/* Left sidebar */}
-      <ChannelSidebar team={team} channels={channels} />
+      <ChannelSidebar
+        team={team}
+        channels={channels}
+        currentUserId={membership?.userId ?? null}
+      />
       {/* Main content */}
       <main className="flex-1 overflow-hidden">{children}</main>
     </div>
