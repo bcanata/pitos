@@ -4,10 +4,19 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Gavel, RotateCcw } from "lucide-react";
+import { CheckCircle2, AlertCircle, Lightbulb, Gavel, RotateCcw } from "lucide-react";
 import { useT } from "@/lib/i18n/client";
 
 type Message = { role: "judge" | "team"; content: string };
+
+type GapReport = {
+  score: number;
+  scoreLine: string;
+  strengths: string[];
+  evidenceGaps: string[];
+  suggestions: string[];
+  raw?: string;
+};
 
 const AWARDS = [
   "FIRST Impact Award",
@@ -31,7 +40,7 @@ export default function JudgeSimPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [turnCount, setTurnCount] = useState(0);
-  const [gapReport, setGapReport] = useState<string>("");
+  const [gapReport, setGapReport] = useState<GapReport | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -98,7 +107,7 @@ export default function JudgeSimPage() {
       const data: {
         judgeReply: string;
         isComplete: boolean;
-        gapReport?: string;
+        gapReport?: GapReport;
       } = await res.json();
 
       const nextTurn = turnCount + 1;
@@ -128,7 +137,7 @@ export default function JudgeSimPage() {
     setResponse("");
     setError(null);
     setTurnCount(0);
-    setGapReport("");
+    setGapReport(null);
   }
 
   if (step === "select") {
@@ -211,23 +220,94 @@ export default function JudgeSimPage() {
             ))}
           </div>
 
-          <Card className="border-amber-500/30 bg-amber-500/5">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2 text-amber-400">
-                <Gavel size={16} />
-                {t("judgeSim.gapReport")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">{gapReport}</p>
-            </CardContent>
-          </Card>
+          {gapReport && <GapReportCard report={gapReport} />}
 
           <Button onClick={resetSession} variant="outline" className="w-full gap-2">
             <RotateCcw size={16} />
             {t("judgeSim.startNew")}
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  function GapReportCard({ report }: { report: GapReport }) {
+    if (
+      !report.scoreLine &&
+      report.strengths.length === 0 &&
+      report.evidenceGaps.length === 0 &&
+      report.suggestions.length === 0
+    ) {
+      return (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2 text-amber-400">
+              <Gavel size={16} />
+              {t("judgeSim.gapReport")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="text-sm leading-relaxed whitespace-pre-wrap text-foreground font-sans">
+              {report.raw ?? ""}
+            </pre>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    const scoreColor =
+      report.score >= 75
+        ? "text-emerald-400"
+        : report.score >= 50
+        ? "text-amber-400"
+        : "text-rose-400";
+
+    return (
+      <div className="space-y-4">
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2 text-primary">
+              <Gavel size={16} />
+              {t("judgeSim.gapReport")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-baseline gap-3">
+            <span className={`text-4xl font-semibold tabular-nums ${scoreColor}`}>
+              {report.score}
+            </span>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">/ 100</span>
+            {report.scoreLine && (
+              <p className="ml-2 text-sm text-foreground/90 leading-snug">
+                {report.scoreLine}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {report.strengths.length > 0 && (
+          <ReportSection
+            icon={<CheckCircle2 size={14} />}
+            title={t("judgeSim.strengths")}
+            items={report.strengths}
+            tone="emerald"
+          />
+        )}
+        {report.evidenceGaps.length > 0 && (
+          <ReportSection
+            icon={<AlertCircle size={14} />}
+            title={t("judgeSim.evidenceGaps")}
+            items={report.evidenceGaps}
+            tone="amber"
+          />
+        )}
+        {report.suggestions.length > 0 && (
+          <ReportSection
+            icon={<Lightbulb size={14} />}
+            title={t("judgeSim.suggestions")}
+            items={report.suggestions}
+            tone="primary"
+          />
+        )}
       </div>
     );
   }
@@ -319,5 +399,59 @@ export default function JudgeSimPage() {
         </Button>
       </form>
     </div>
+  );
+}
+
+function ReportSection({
+  icon,
+  title,
+  items,
+  tone,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  items: string[];
+  tone: "emerald" | "amber" | "primary";
+}) {
+  const styles = {
+    emerald: {
+      border: "border-emerald-500/30",
+      bg: "bg-emerald-500/5",
+      icon: "text-emerald-400",
+      bullet: "text-emerald-400/80",
+    },
+    amber: {
+      border: "border-amber-500/30",
+      bg: "bg-amber-500/5",
+      icon: "text-amber-400",
+      bullet: "text-amber-400/80",
+    },
+    primary: {
+      border: "border-primary/30",
+      bg: "bg-primary/5",
+      icon: "text-primary",
+      bullet: "text-primary/80",
+    },
+  }[tone];
+
+  return (
+    <Card className={`${styles.border} ${styles.bg}`}>
+      <CardHeader className="pb-2">
+        <CardTitle className={`text-base flex items-center gap-2 ${styles.icon}`}>
+          {icon}
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-1.5">
+          {items.map((item, i) => (
+            <li key={i} className="flex gap-2 text-sm leading-relaxed">
+              <span className={`shrink-0 ${styles.bullet}`}>•</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }

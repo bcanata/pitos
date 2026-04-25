@@ -1,6 +1,6 @@
 import { subscribe } from "@/lib/sse";
 import { db } from "@/db";
-import { messages, tasks, decisions } from "@/db/schema";
+import { messages, tasks } from "@/db/schema";
 import { eq, gt, and } from "drizzle-orm";
 
 export const runtime = "nodejs"; // SSE needs Node.js runtime
@@ -38,7 +38,6 @@ export async function GET(
       // Initial floor: now() so we don't replay history on connect.
       let messageFloor = new Date();
       let taskFloor = new Date();
-      let decisionFloor = new Date();
 
       const poll = async () => {
         try {
@@ -66,10 +65,8 @@ export async function GET(
             if (t.createdAt > taskFloor) taskFloor = t.createdAt;
           }
 
-          // Decisions are team-scoped — only push if any reference this channel
-          // via sourceMessageId belonging here. Cheaper: skip channel-poll for
-          // decisions; they go through the team SSE which polls too.
-          void decisionFloor;
+          // Decisions are team-scoped, not channel-scoped — they reach the
+          // sidebar via the team SSE poll instead of this one.
         } catch (err) {
           console.error("[sse:channel poll]", err);
         }

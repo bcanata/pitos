@@ -10,6 +10,7 @@ import { useT } from "@/lib/i18n/client";
 
 interface Citation {
   messageId: string;
+  channelId: string;
   channelName: string;
   preview: string;
 }
@@ -112,7 +113,10 @@ export default function AskPage() {
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {result.citations.map((citation) => (
-                    <Link key={citation.messageId} href="/app">
+                    <Link
+                      key={citation.messageId}
+                      href={`/app/channels/${citation.channelId}#msg-${citation.messageId}`}
+                    >
                       <div className="inline-flex flex-col gap-0.5 px-3 py-2 rounded-lg border border-border bg-card hover:bg-muted transition-colors cursor-pointer max-w-xs">
                         <span className="text-xs font-medium text-primary">
                           #{citation.channelName}

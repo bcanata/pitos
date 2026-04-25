@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import ChannelSidebar from "@/components/workspace/channel-sidebar";
+import CommandPalette from "@/components/workspace/command-palette";
 
 export default async function WorkspaceAppLayout({ children }: { children: React.ReactNode }) {
   const cookieHeader = (await cookies()).toString();
@@ -23,6 +24,10 @@ export default async function WorkspaceAppLayout({ children }: { children: React
       />
       {/* Main content */}
       <main className="flex-1 overflow-hidden">{children}</main>
+      {/* Cmd+K palette — global, mounted once per workspace */}
+      <CommandPalette
+        channels={channels.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }))}
+      />
     </div>
   );
 }

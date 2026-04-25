@@ -8,7 +8,12 @@ export async function runMemoryAgent(
   teamId: string
 ): Promise<{
   answer: string;
-  citations: Array<{ messageId: string; channelName: string; preview: string }>;
+  citations: Array<{
+    messageId: string;
+    channelId: string;
+    channelName: string;
+    preview: string;
+  }>;
 }> {
   const teamChannels = await db
     .select()
@@ -124,6 +129,7 @@ export async function runMemoryAgent(
       if (!msg) return null;
       return {
         messageId: msgId,
+        channelId: msg.channelId,
         channelName: channelMap.get(msg.channelId) ?? "unknown",
         preview: msg.content.slice(0, 120),
       };

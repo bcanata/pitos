@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Hash, Send } from "lucide-react";
+import { ArrowDown, Hash, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import MessageBubble from "./message-bubble";
@@ -31,7 +31,9 @@ export default function ChannelView({ channel, initialMessages, currentUserId }:
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [showScrollDown, setShowScrollDown] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // SSE subscription
   useEffect(() => {
@@ -73,10 +75,53 @@ export default function ChannelView({ channel, initialMessages, currentUserId }:
     return () => clearTimeout(t);
   }, [messages.length, channel.id]);
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom on new messages — but only if the user was already near
+  // the bottom. If they've scrolled up to read history, don't yank them back.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const sc = scrollRef.current;
+    if (!sc) return;
+    const distance = sc.scrollHeight - sc.scrollTop - sc.clientHeight;
+    if (distance < 200) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
+
+  // Track scroll position for the floating "scroll-to-bottom" button.
+  useEffect(() => {
+    const sc = scrollRef.current;
+    if (!sc) return;
+    const onScroll = () => {
+      const distance = sc.scrollHeight - sc.scrollTop - sc.clientHeight;
+      setShowScrollDown(distance > 200);
+    };
+    onScroll();
+    sc.addEventListener("scroll", onScroll, { passive: true });
+    return () => sc.removeEventListener("scroll", onScroll);
+  }, [messages.length]);
+
+  // Hash-based deeplink: /app/channels/{id}#msg-{messageId} from Ask & Decisions.
+  // Re-runs after messages render so the target node exists.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash;
+    const match = hash.match(/^#msg-([\w-]+)$/);
+    if (!match) return;
+    const id = match[1];
+    if (!messages.some((m) => m.id === id)) return;
+    const el = document.getElementById(`msg-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("ring-2", "ring-amber-400/80", "ring-offset-2", "ring-offset-background");
+    const tm = setTimeout(() => {
+      el.classList.remove("ring-2", "ring-amber-400/80", "ring-offset-2", "ring-offset-background");
+    }, 1800);
+    return () => clearTimeout(tm);
+  }, [messages.length, channel.id]);
+
+  function scrollToBottom() {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    fetch(`/api/channels/${channel.id}/read`, { method: "POST" }).catch(() => {});
+  }
 
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
@@ -122,7 +167,7 @@ export default function ChannelView({ channel, initialMessages, currentUserId }:
       </div>
 
       {/* Messages — plain div so overflow-y-auto works reliably in flex column */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="relative flex-1 min-h-0 overflow-y-auto px-4 py-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <p className="text-sm font-medium text-muted-foreground">{t("channel.empty")}</p>
@@ -135,6 +180,16 @@ export default function ChannelView({ channel, initialMessages, currentUserId }:
           ))}
         </div>
         <div ref={bottomRef} />
+        {showScrollDown && (
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            aria-label="Scroll to latest"
+            className="sticky bottom-4 float-right mr-1 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition w-9 h-9"
+          >
+            <ArrowDown size={16} />
+          </button>
+        )}
       </div>
 
       {/* Input */}

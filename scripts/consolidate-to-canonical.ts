@@ -74,7 +74,7 @@ async function main() {
     invCount: number;
   }> = [];
 
-  let abortReasons: string[] = [];
+  const abortReasons: string[] = [];
 
   for (const t of otherTeams) {
     const chs = await db.select().from(channels).where(eq(channels.teamId, t.id)).all();

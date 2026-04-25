@@ -2,21 +2,32 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { isDemoUser } from "@/lib/demo";
 import { db } from "@/db";
-import { decisions, memberships } from "@/db/schema";
+import { decisions, memberships, messages } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export async function GET() {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (isDemoUser(user.email)) return NextResponse.json({ error: "Not available in demo" }, { status: 403 });
+  // Demo users get a read-only list (no POST), but should be able to *see* decisions.
+  // Previously this 403'd them — the demo flow needs decisions visible for judges.
 
   const membership = await db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
   if (!membership) return NextResponse.json({ error: "Not a team member" }, { status: 403 });
 
   const rows = await db
-    .select()
+    .select({
+      id: decisions.id,
+      decision: decisions.decision,
+      rationale: decisions.rationale,
+      alternativesConsidered: decisions.alternativesConsidered,
+      contextAtTime: decisions.contextAtTime,
+      recordedAt: decisions.recordedAt,
+      sourceMessageId: decisions.sourceMessageId,
+      sourceChannelId: messages.channelId,
+    })
     .from(decisions)
+    .leftJoin(messages, eq(decisions.sourceMessageId, messages.id))
     .where(eq(decisions.teamId, membership.teamId))
     .orderBy(desc(decisions.recordedAt))
     .all();

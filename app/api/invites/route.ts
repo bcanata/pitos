@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { db } from "@/db";
-import { invites, memberships, users } from "@/db/schema";
+import { invites, memberships } from "@/db/schema";
 import { eq, isNull, and } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { isDemoUser } from "@/lib/demo";

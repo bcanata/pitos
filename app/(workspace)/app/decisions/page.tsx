@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +16,8 @@ interface Decision {
   alternativesConsidered: string | null;
   contextAtTime: string | null;
   recordedAt: string | number;
+  sourceMessageId: string | null;
+  sourceChannelId: string | null;
 }
 
 export default function DecisionsPage() {
@@ -162,7 +166,17 @@ export default function DecisionsPage() {
             <Card key={d.id}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base leading-snug">{d.decision}</CardTitle>
-                <p className="text-xs text-muted-foreground">{formatDate(d.recordedAt)}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-muted-foreground">{formatDate(d.recordedAt)}</p>
+                  {d.sourceMessageId && d.sourceChannelId && (
+                    <Link
+                      href={`/app/channels/${d.sourceChannelId}#msg-${d.sourceMessageId}`}
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      Open source <ArrowUpRight size={12} />
+                    </Link>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 {d.rationale && (

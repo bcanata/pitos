@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { users, teams, memberships, translationCache } from "@/db/schema";
+import { users, translationCache } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { PREDEFINED, type Bundle } from "./index";
 
