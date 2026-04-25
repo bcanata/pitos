@@ -1,9 +1,63 @@
 "use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Bot, Gavel } from "lucide-react";
+import { ArrowUpRight, Bot, Gavel } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
+
+// Internal sentinel URL — `[msg:ID]` markers in agent text get pre-processed
+// into markdown links pointing here, then the custom `a` renderer below
+// detects the prefix and swaps in a CitationChip instead of a normal anchor.
+const CITE_PREFIX = "/_cite_msg/";
+
+function CitationChip({ messageId }: { messageId: string }) {
+  const router = useRouter();
+  const [resolving, setResolving] = useState(false);
+
+  return (
+    <button
+      type="button"
+      onClick={async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (resolving) return;
+        setResolving(true);
+        try {
+          const r = await fetch(`/api/messages/${messageId}/locate`);
+          if (!r.ok) return;
+          const j = (await r.json()) as { channelId?: string };
+          if (j.channelId) {
+            router.push(`/app/channels/${j.channelId}#msg-${messageId}`);
+          }
+        } finally {
+          setResolving(false);
+        }
+      }}
+      title={`Open cited message ${messageId.slice(0, 8)}…`}
+      className={cn(
+        "inline-flex items-baseline align-baseline gap-0.5 rounded border border-primary/30 bg-primary/10 px-1 py-0",
+        "text-[10px] font-medium text-primary leading-none",
+        "hover:bg-primary/20 hover:border-primary/50",
+        "transition-colors mx-0.5",
+        resolving && "opacity-60",
+      )}
+    >
+      <ArrowUpRight size={9} className="-mb-0.5" />
+      ref
+    </button>
+  );
+}
+
+// Pre-process the message text so [msg:ID] tokens render as clickable chips.
+// The trick: rewrite them as markdown links pointing at our sentinel URL,
+// then intercept them in the `a` renderer.
+function inlineCitationsToMarkdown(content: string): string {
+  return content.replace(/\[msg:([a-zA-Z0-9-]+)\]/g, (_, id) => {
+    return `[msg-cite](${CITE_PREFIX}${id})`;
+  });
+}
 
 interface Message {
   id: string;
@@ -57,10 +111,16 @@ function frcLabelForUrl(raw: string): string | null {
 
 // Markdown components — minimal styling so it inherits the bubble theme.
 // The two key wins are: (1) **bold** + *italic* + lists + code blocks render,
-// (2) auto-linked URLs get an FRC domain badge.
+// (2) auto-linked URLs get an FRC domain badge,
+// (3) [msg:ID] memory citations render as clickable chips that deeplink
+//     into the right channel after a quick locate lookup.
 const MD_COMPONENTS: Components = {
   a({ href, children }) {
     const url = typeof href === "string" ? href : "";
+    if (url.startsWith(CITE_PREFIX)) {
+      const id = url.slice(CITE_PREFIX.length);
+      return <CitationChip messageId={id} />;
+    }
     const label = url ? frcLabelForUrl(url) : null;
     return (
       <a
@@ -139,10 +199,11 @@ const MD_COMPONENTS: Components = {
 };
 
 function MessageBody({ content }: { content: string }) {
+  const prepared = inlineCitationsToMarkdown(content);
   return (
     <div className="text-sm text-foreground leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&>p]:my-1">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
-        {content}
+        {prepared}
       </ReactMarkdown>
     </div>
   );
