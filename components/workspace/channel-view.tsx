@@ -1,7 +1,7 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, Bot, Hash, Send } from "lucide-react";
+import { ArrowDown, Bot, Hash, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import MessageBubble from "./message-bubble";
@@ -22,6 +22,7 @@ interface Message {
 interface Props {
   channel: { id: string; name: string; description: string | null };
   initialMessages: Message[];
+  initialHasMore: boolean;
   currentUserId: string | null;
 }
 
@@ -29,18 +30,26 @@ interface Props {
 // MENTION_PATTERN in lib/agents/pitos-mention.ts.
 const PITOS_MENTION = /(?:^|[^a-z0-9])@pitos\b/i;
 
-export default function ChannelView({ channel, initialMessages, currentUserId }: Props) {
+export default function ChannelView({ channel, initialMessages, initialHasMore, currentUserId }: Props) {
   const t = useT();
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
+  const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   // Track when the user has just mentioned @pitos and we're awaiting a reply.
   // Cleared when an agent-generated message arrives, or after a 30s safety timeout.
   const [pitosThinkingSince, setPitosThinkingSince] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Scroll-position preservation across older-message prepends.
+  const prependCounter = useRef(0);
+  const lastSeenPrepend = useRef(0);
+  const heightBeforePrepend = useRef(0);
+  // Guards re-running the initial bottom-jump after the first paint.
+  const initialJumped = useRef(false);
 
   // SSE subscription
   useEffect(() => {
@@ -134,6 +143,28 @@ export default function ChannelView({ channel, initialMessages, currentUserId }:
     return () => clearTimeout(t);
   }, [messages.length, channel.id]);
 
+  // Initial mount: jump straight to the bottom synchronously, before paint.
+  // useLayoutEffect runs before the browser paints, so the user never sees the
+  // top of the channel flash by.
+  useLayoutEffect(() => {
+    if (initialJumped.current) return;
+    const sc = scrollRef.current;
+    if (!sc) return;
+    sc.scrollTop = sc.scrollHeight;
+    initialJumped.current = true;
+  }, []);
+
+  // After an older-history prepend, restore the prior viewport so the message
+  // the user was reading stays put. Runs synchronously before paint.
+  useLayoutEffect(() => {
+    if (prependCounter.current === lastSeenPrepend.current) return;
+    lastSeenPrepend.current = prependCounter.current;
+    const sc = scrollRef.current;
+    if (!sc) return;
+    const diff = sc.scrollHeight - heightBeforePrepend.current;
+    sc.scrollTop = sc.scrollTop + diff;
+  }, [messages]);
+
   // Scroll to bottom on new messages — but only if the user was already near
   // the bottom. If they've scrolled up to read history, don't yank them back.
   useEffect(() => {
@@ -145,13 +176,18 @@ export default function ChannelView({ channel, initialMessages, currentUserId }:
     }
   }, [messages]);
 
-  // Track scroll position for the floating "scroll-to-bottom" button.
+  // Track scroll position for the floating "scroll-to-bottom" button + lazy-load
+  // older messages when the user nears the top of the scroll container. Uses a
+  // ref to read the latest loadOlder closure without re-binding the listener
+  // on every render.
+  const loadOlderRef = useRef<() => void>(() => {});
   useEffect(() => {
     const sc = scrollRef.current;
     if (!sc) return;
     const onScroll = () => {
       const distance = sc.scrollHeight - sc.scrollTop - sc.clientHeight;
       setShowScrollDown(distance > 200);
+      if (sc.scrollTop < 200) loadOlderRef.current();
     };
     onScroll();
     sc.addEventListener("scroll", onScroll, { passive: true });
@@ -181,6 +217,44 @@ export default function ChannelView({ channel, initialMessages, currentUserId }:
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     fetch(`/api/channels/${channel.id}/read`, { method: "POST" }).catch(() => {});
   }
+
+  async function loadOlder() {
+    if (!hasMore || loadingOlder) return;
+    const sc = scrollRef.current;
+    if (!sc) return;
+    const oldest = messages[0];
+    if (!oldest) return;
+
+    setLoadingOlder(true);
+    try {
+      const cursor = encodeURIComponent(new Date(oldest.createdAt).toISOString());
+      const res = await fetch(`/api/channels/${channel.id}/messages?before=${cursor}`);
+      if (!res.ok) return;
+      const { messages: older, hasMore: nextHasMore } = (await res.json()) as {
+        messages: Message[];
+        hasMore: boolean;
+      };
+      if (older.length === 0) {
+        setHasMore(false);
+        return;
+      }
+      heightBeforePrepend.current = sc.scrollHeight;
+      prependCounter.current += 1;
+      setMessages(prev => {
+        const seen = new Set(prev.map(m => m.id));
+        const dedup = older.filter(m => !seen.has(m.id));
+        return [...dedup, ...prev];
+      });
+      setHasMore(nextHasMore);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
+  // Keep the ref pointing at the latest closure so the scroll listener
+  // (bound once per messages.length change) always invokes the current state.
+  useEffect(() => {
+    loadOlderRef.current = loadOlder;
+  });
 
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
@@ -233,6 +307,17 @@ export default function ChannelView({ channel, initialMessages, currentUserId }:
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <p className="text-sm font-medium text-muted-foreground">{t("channel.empty")}</p>
             <p className="text-xs text-muted-foreground/60 mt-1">{t("channel.emptyHint")}</p>
+          </div>
+        )}
+        {messages.length > 0 && (
+          <div className="flex justify-center py-2 text-xs text-muted-foreground/70">
+            {loadingOlder ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 size={12} className="animate-spin" /> Loading older messages…
+              </span>
+            ) : hasMore ? null : (
+              <span className="text-muted-foreground/50">Beginning of channel</span>
+            )}
           </div>
         )}
         <div className="space-y-1.5">

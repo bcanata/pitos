@@ -2,17 +2,31 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { db } from "@/db";
 import { messages, channels, memberships, users } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc, lt } from "drizzle-orm";
 import { notifyChannel, notifyTeam } from "@/lib/sse";
 import { isDemoUser } from "@/lib/demo";
 
 type Params = { params: Promise<{ channelId: string }> };
 
-export async function GET(_req: Request, { params }: Params) {
+const PAGE_SIZE = 50;
+
+export async function GET(req: Request, { params }: Params) {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { channelId } = await params;
 
+  const url = new URL(req.url);
+  const beforeParam = url.searchParams.get("before");
+  const beforeDate = beforeParam ? new Date(beforeParam) : null;
+  if (beforeDate && Number.isNaN(beforeDate.getTime())) {
+    return NextResponse.json({ error: "Invalid `before` cursor" }, { status: 400 });
+  }
+
+  const where = beforeDate
+    ? and(eq(messages.channelId, channelId), lt(messages.createdAt, beforeDate))
+    : eq(messages.channelId, channelId);
+
+  // Fetch one extra row to detect whether more history exists past this page.
   const msgsRaw = await db
     .select({
       id: messages.id,
@@ -28,13 +42,16 @@ export async function GET(_req: Request, { params }: Params) {
     })
     .from(messages)
     .leftJoin(users, eq(messages.userId, users.id))
-    .where(eq(messages.channelId, channelId))
+    .where(where)
     .orderBy(desc(messages.createdAt))
-    .limit(50)
+    .limit(PAGE_SIZE + 1)
     .all();
-  const msgs = msgsRaw.reverse();
 
-  return NextResponse.json({ messages: msgs });
+  const hasMore = msgsRaw.length > PAGE_SIZE;
+  const page = hasMore ? msgsRaw.slice(0, PAGE_SIZE) : msgsRaw;
+  const msgs = page.reverse();
+
+  return NextResponse.json({ messages: msgs, hasMore });
 }
 
 export async function POST(req: Request, { params }: Params) {
