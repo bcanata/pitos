@@ -35,7 +35,22 @@ export interface MentionInput {
 
 export const MENTION_PATTERN = /(?:^|[^a-z0-9])@pitos\b/i;
 
-const tools: Anthropic.Messages.Tool[] = [
+// Mix of custom tools and Anthropic server-side tools (web_search). The
+// server-side tools are executed by Anthropic's infrastructure — the API
+// returns a server_tool_use block + server_tool_result inline, so they
+// never hit our local executeTool() switch.
+type ToolDef = Anthropic.Messages.Tool | {
+  type: "web_search_20250305";
+  name: "web_search";
+  max_uses?: number;
+};
+
+const tools: ToolDef[] = [
+  {
+    type: "web_search_20250305",
+    name: "web_search",
+    max_uses: 5,
+  },
   {
     name: "create_channel",
     description:
@@ -744,6 +759,10 @@ async function executeTool(
 ): Promise<ToolOutput> {
   try {
     switch (name) {
+      case "web_search":
+        // Server-side tool — Anthropic executes this. If it ever reaches
+        // the client tool loop, return a no-op so the conversation continues.
+        return { ok: true, note: "web_search handled server-side" };
       case "create_channel":
         return await execCreateChannel(input, ctx);
       case "archive_channel":
@@ -780,9 +799,10 @@ export async function runMentionAgent(input: MentionInput): Promise<void> {
 You are invoked only when someone tags @pitos. Read the recent conversation, decide what the user actually wants, and act.
 
 Capability surface (call as tools when the user's intent matches):
+- Web search — web_search for questions that need information from the public internet (TBA pages, FRC news, vendor data sheets, sponsor URLs). Always cite the source URL in your reply.
 - Tasks — create_task, update_task_status (any role)
 - Decisions — create_decision with rationale (any role)
-- Memory — query_memory for any question about team history (any role) — always cite [msg:ID]
+- Memory — query_memory for any question about team HISTORY / messages (any role) — cite [msg:ID]. Use this for anything internal; use web_search for anything external.
 - Cross-channel — post_message_to_channel to drop a heads-up in another channel (any role)
 - Channels (mentor+ only) — create_channel, archive_channel, update_channel_description
 - Team admin (mentor+ only) — send_invite, update_team_info
@@ -816,10 +836,10 @@ Caller role: ${input.role}. What do you do?`;
   let status: "completed" | "failed" = "completed";
 
   try {
-    for (let step = 0; step < 4; step++) {
+    for (let step = 0; step < 6; step++) {
       const result = await anthropic.messages.create({
         model: "claude-opus-4-7",
-        max_tokens: 1024,
+        max_tokens: 2048,
         system: systemPrompt,
         tools,
         messages: conversation,
