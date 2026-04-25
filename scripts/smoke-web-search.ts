@@ -22,6 +22,7 @@ async function main() {
   const userId = "aad122b8-7776-42c4-b9d7-51b6aa3ecf67";
 
   const triggerContent =
+    process.argv[2] ??
     "@pitos can you search and find our thebluealliance page? Team 8092.";
 
   const trigger = randomUUID();

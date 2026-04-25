@@ -43,13 +43,39 @@ type ToolDef = Anthropic.Messages.Tool | {
   type: "web_search_20250305";
   name: "web_search";
   max_uses?: number;
+  allowed_domains?: string[];
 };
+
+// Curated allowlist of FRC-authoritative sources. Web search results from
+// any other domain are dropped by Anthropic before the model sees them.
+const FRC_ALLOWED_DOMAINS = [
+  // ─── Official FIRST ──────────────────────────────────────────────────
+  "firstinspires.org",          // game manual, awards, programs, Q&A
+  "frc-events.firstinspires.org", // official event/match results, schedules
+  // ─── Community canonical ─────────────────────────────────────────────
+  "thebluealliance.com",        // team/event/award/match database (TBA)
+  "statbotics.io",              // EPA, OPR, win-rate predictions
+  "chiefdelphi.com",            // community Q&A forum (high-signal answers)
+  // ─── Robot software / docs ───────────────────────────────────────────
+  "wpilib.org",                 // WPILib homepage
+  "docs.wpilib.org",            // WPILib documentation
+  "github.com",                 // team code repos, frc-* / wpilibsuite orgs
+  // ─── COTS hardware vendors (commonly cited in build threads) ─────────
+  "andymark.com",
+  "revrobotics.com",
+  "ctr-electronics.com",        // Phoenix6, Kraken/Falcon, CANcoder
+  "wcproducts.com",             // WCP / SwerveX
+  "vexrobotics.com",            // VEXpro
+  "swervedrivespecialties.com", // SDS MK4i / MAXSwerve competitor
+  "playingwithfusion.com",      // sensors, Time-of-Flight, Venom
+];
 
 const tools: ToolDef[] = [
   {
     type: "web_search_20250305",
     name: "web_search",
     max_uses: 5,
+    allowed_domains: FRC_ALLOWED_DOMAINS,
   },
   {
     name: "create_channel",
@@ -799,7 +825,7 @@ export async function runMentionAgent(input: MentionInput): Promise<void> {
 You are invoked only when someone tags @pitos. Read the recent conversation, decide what the user actually wants, and act.
 
 Capability surface (call as tools when the user's intent matches):
-- Web search — web_search for questions that need information from the public internet (TBA pages, FRC news, vendor data sheets, sponsor URLs). Always cite the source URL in your reply.
+- Web search — web_search for questions that need public-internet information. RESTRICTED to FRC-authoritative domains only: firstinspires.org, frc-events.firstinspires.org, thebluealliance.com, statbotics.io, chiefdelphi.com, wpilib.org / docs.wpilib.org, github.com, andymark.com, revrobotics.com, ctr-electronics.com, wcproducts.com, vexrobotics.com, swervedrivespecialties.com, playingwithfusion.com. If the question is outside FRC (weather, general news, sports, etc.) explain you can only search FRC sources. Always cite the source URL.
 - Tasks — create_task, update_task_status (any role)
 - Decisions — create_decision with rationale (any role)
 - Memory — query_memory for any question about team HISTORY / messages (any role) — cite [msg:ID]. Use this for anything internal; use web_search for anything external.
@@ -866,10 +892,14 @@ Caller role: ${input.role}. What do you do?`;
         continue;
       }
 
-      const textBlock = result.content.find(
-        (b): b is Anthropic.Messages.TextBlock => b.type === "text",
-      );
-      finalText = textBlock?.text?.trim() ?? "";
+      // Server-side tools (web_search) can produce multiple text blocks per
+      // response: pre-search reasoning, then post-search synthesis. Join
+      // them all rather than taking only the first.
+      finalText = result.content
+        .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join("\n\n")
+        .trim();
       break;
     }
   } catch (err) {
