@@ -1,33 +1,38 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getSession } from "@/lib/session";
+import { loadTeamWorkspace } from "@/lib/data/team";
+import { loadChannelMessages } from "@/lib/data/messages";
 import ChannelView from "@/components/workspace/channel-view";
 import RightPanel from "@/components/workspace/right-panel";
 
 export default async function ChannelPage({ params }: { params: Promise<{ channelId: string }> }) {
+  const { user } = await getSession();
+  if (!user) redirect("/auth");
+
   const { channelId } = await params;
-  const cookieHeader = (await cookies()).toString();
 
-  const [teamRes, msgRes] = await Promise.all([
-    fetch(`${process.env.APP_URL}/api/teams/mine`, { headers: { cookie: cookieHeader }, cache: "no-store" }),
-    fetch(`${process.env.APP_URL}/api/channels/${channelId}/messages`, { headers: { cookie: cookieHeader }, cache: "no-store" }),
-  ]);
+  const [{ channels, membership }, { messages: initialMessages, hasMore: initialHasMore }] =
+    await Promise.all([
+      loadTeamWorkspace(user.id),
+      loadChannelMessages(channelId),
+    ]);
 
-  if (!teamRes.ok) redirect("/auth");
-  const { channels, membership } = await teamRes.json();
-  const { messages: initialMessages, hasMore: initialHasMore } = msgRes.ok
-    ? await msgRes.json()
-    : { messages: [], hasMore: false };
-
-  const channel = channels.find((c: { id: string }) => c.id === channelId);
+  const channel = channels.find((c) => c.id === channelId);
   if (!channel) redirect("/app/channels");
+
+  // Serialize Date → ISO string at the server/client boundary.
+  const wireMessages = initialMessages.map((m) => ({
+    ...m,
+    createdAt: m.createdAt.toISOString(),
+  }));
 
   return (
     <div className="flex h-full overflow-hidden">
       <div className="flex-1 overflow-hidden">
         <ChannelView
           channel={channel}
-          initialMessages={initialMessages}
-          initialHasMore={Boolean(initialHasMore)}
+          initialMessages={wireMessages}
+          initialHasMore={initialHasMore}
           currentUserId={membership?.userId ?? null}
         />
       </div>

@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { db } from "@/db";
-import { messages, channels, memberships, users } from "@/db/schema";
-import { and, eq, desc, lt } from "drizzle-orm";
+import { messages, channels, memberships } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { notifyChannel, notifyTeam } from "@/lib/sse";
 import { isDemoUser } from "@/lib/demo";
+import { loadChannelMessages } from "@/lib/data/messages";
 
 type Params = { params: Promise<{ channelId: string }> };
-
-const PAGE_SIZE = 50;
 
 export async function GET(req: Request, { params }: Params) {
   const { user } = await getSession();
@@ -22,36 +21,8 @@ export async function GET(req: Request, { params }: Params) {
     return NextResponse.json({ error: "Invalid `before` cursor" }, { status: 400 });
   }
 
-  const where = beforeDate
-    ? and(eq(messages.channelId, channelId), lt(messages.createdAt, beforeDate))
-    : eq(messages.channelId, channelId);
-
-  // Fetch one extra row to detect whether more history exists past this page.
-  const msgsRaw = await db
-    .select({
-      id: messages.id,
-      channelId: messages.channelId,
-      userId: messages.userId,
-      content: messages.content,
-      agentGenerated: messages.agentGenerated,
-      agentType: messages.agentType,
-      juryReflexKind: messages.juryReflexKind,
-      metadata: messages.metadata,
-      createdAt: messages.createdAt,
-      senderName: users.name,
-    })
-    .from(messages)
-    .leftJoin(users, eq(messages.userId, users.id))
-    .where(where)
-    .orderBy(desc(messages.createdAt))
-    .limit(PAGE_SIZE + 1)
-    .all();
-
-  const hasMore = msgsRaw.length > PAGE_SIZE;
-  const page = hasMore ? msgsRaw.slice(0, PAGE_SIZE) : msgsRaw;
-  const msgs = page.reverse();
-
-  return NextResponse.json({ messages: msgs, hasMore });
+  const result = await loadChannelMessages(channelId, { before: beforeDate });
+  return NextResponse.json(result);
 }
 
 export async function POST(req: Request, { params }: Params) {
