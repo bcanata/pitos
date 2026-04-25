@@ -10,7 +10,7 @@ import { useT } from "@/lib/i18n/client";
 type Message = { role: "judge" | "team"; content: string };
 
 const AWARDS = [
-  "Chairman's Award",
+  "FIRST Impact Award",
   "Engineering Inspiration",
   "Rookie All Star",
   "Safety Award",

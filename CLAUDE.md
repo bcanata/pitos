@@ -52,6 +52,10 @@ JSON columns use `text({ mode: 'json' })` — cast types at the call site with `
 
 See `.env.example`. Required: `ANTHROPIC_API_KEY`, `AUTH_SECRET`, `APP_URL`. Email provider chain (magic links): `RESEND_API_KEY` + `RESEND_FROM_EMAIL` (free) → `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_EMAIL_API_TOKEN` + `FROM_EMAIL` (Workers Paid) → console log fallback. Persistent DB: `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN`.
 
+## Live instance
+
+Production URL: **https://pitos.8092.tr** — this is also the demo. Deploy here with `vercel --prod` (no separate staging/preview environment).
+
 ## Deploying (fork & use)
 
 This repo is designed to be forked. To deploy your own instance:

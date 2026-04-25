@@ -142,7 +142,7 @@ export async function continueJudgeSim(
 
 function awardToEnum(award: string): typeof judgeSessions.$inferInsert["awardType"] {
   const map: Record<string, typeof judgeSessions.$inferInsert["awardType"]> = {
-    "Chairman's Award": "impact",
+    "FIRST Impact Award": "impact",
     "Impact Award": "impact",
     "Engineering Inspiration": "engineering_inspiration",
     "Rookie All Star": "rookie_all_star",

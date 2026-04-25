@@ -24,6 +24,15 @@ export async function POST(req: Request) {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const existing = await db
+    .select()
+    .from(memberships)
+    .where(eq(memberships.userId, user.id))
+    .get();
+  if (existing) {
+    return NextResponse.json({ error: "Already on a team" }, { status: 409 });
+  }
+
   const body = await req.json();
   const messages: Array<{ role: "user" | "assistant"; content: string }> =
     body?.messages ?? [];
