@@ -10,7 +10,7 @@ import LanguageSettings from "@/components/workspace/language-settings";
 import PendingMembers from "@/components/workspace/pending-members";
 import TeamInfoForm from "@/components/workspace/team-info-form";
 import { Avatar, SectionHead } from "@/components/workspace/broadcast-atoms";
-import { displayName, isDemoInstance } from "@/lib/demo";
+import { displayEmail, displayName } from "@/lib/demo";
 
 export default async function SettingsPage() {
   const { user } = await getSession();
@@ -54,12 +54,9 @@ export default async function SettingsPage() {
   const canInvite = membership.role === "lead_mentor" || membership.role === "captain";
   const canApprove = canInvite;
 
-  // On the demo instance, drop both name *and* email when serializing —
-  // email next to a masked name would defeat the anonymization.
-  const onDemo = isDemoInstance();
   const serializedPending = pendingMemberships.map((m) => ({
     membershipId: m.membershipId,
-    email: onDemo ? null : m.email,
+    email: displayEmail(m.email),
     name: displayName(m.name),
     joinedAt: m.joinedAt.getTime(),
   }));
@@ -74,7 +71,7 @@ export default async function SettingsPage() {
 
   const serializedInvites = pendingInvites.map((inv) => ({
     id: inv.id,
-    email: inv.email,
+    email: displayEmail(inv.email) ?? inv.email,
     expiresAt: inv.expiresAt ? inv.expiresAt.getTime() : null,
   }));
 
@@ -119,18 +116,15 @@ export default async function SettingsPage() {
                   }}
                 >
                   {(() => {
-                    const shown = displayName(m.name);
+                    const shownName = displayName(m.name);
+                    const shownEmail = displayEmail(m.email);
                     return (
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <Avatar name={shown ?? m.email ?? "?"} />
+                        <Avatar name={shownName ?? shownEmail ?? "?"} />
                         <div>
-                          <div style={{ fontWeight: 600 }}>{shown ?? m.email ?? "Unknown"}</div>
-                          {/* Hide the email line on the demo instance — it would
-                              defeat the anonymization. displayName returns the
-                              raw name when not on the demo, so checking
-                              shown === m.name tells us we're not masking. */}
-                          {m.name && m.email && shown === m.name && (
-                            <div style={{ color: "var(--pit-text-3)", fontSize: 11 }}>{m.email}</div>
+                          <div style={{ fontWeight: 600 }}>{shownName ?? shownEmail ?? "Unknown"}</div>
+                          {shownName && shownEmail && (
+                            <div style={{ color: "var(--pit-text-3)", fontSize: 11 }}>{shownEmail}</div>
                           )}
                         </div>
                       </div>

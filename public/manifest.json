@@ -4,8 +4,8 @@
   "description": "AI-native team platform for FRC",
   "start_url": "/app",
   "display": "standalone",
-  "background_color": "#0d1f3c",
-  "theme_color": "#0d1f3c",
+  "background_color": "#512f75",
+  "theme_color": "#512f75",
   "icons": [
     {
       "src": "/icons/icon-192.png",

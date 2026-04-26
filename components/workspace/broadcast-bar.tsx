@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Moon, Sun } from "lucide-react";
+import { Menu, Moon, Sun } from "lucide-react";
 import { Avatar, LiveDot, Telemetry, type TelemetryItem } from "./broadcast-atoms";
+import { useMobileShell } from "@/lib/mobile-shell-context";
 
 interface Team {
   id: string;
@@ -27,6 +28,7 @@ interface Props {
 // Listens to the team SSE stream so the PITOS pill flips between
 // STANDBY / LIVE in real time when an agent run is active.
 export default function BroadcastBar({ team, user, telemetry }: Props) {
+  const { toggleSidebar } = useMobileShell();
   const [agentLive, setAgentLive] = useState(false);
   // Read the html class lazily on first render. The root layout sets `dark`
   // by default; browsers without DOM (SSR) get "dark" too which matches.
@@ -81,6 +83,14 @@ export default function BroadcastBar({ team, user, telemetry }: Props) {
   return (
     <div className="pit-broadcast-bar">
       <div className="pit-broadcast-left">
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          className="pit-icon-btn pit-mobile-hamburger"
+          aria-label="Open menu"
+        >
+          <Menu size={16} />
+        </button>
         <div className="pit-team-mark">
           <div className="pit-team-num pit-tnum">{teamNumber}</div>
           <div className="pit-team-name">{teamName}</div>

@@ -1105,3 +1105,52 @@ html:not(.dark) {
 .pit-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
 .pit-scroll::-webkit-scrollbar-thumb { background: var(--pit-line-strong); border-radius: 999px; }
 .pit-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* ─────────── Mobile (≤ 767.98px) ─────────── */
+/* Desktop-hide the mobile-only triggers (avoids display-none fighting @media order) */
+.pit-mobile-hamburger,
+.pit-mobile-rightpanel-toggle,
+.pit-sidebar-backdrop { display: none; }
+
+@media (max-width: 767.98px) {
+  /* Mobile-only triggers become visible */
+  .pit-mobile-hamburger,
+  .pit-mobile-rightpanel-toggle { display: inline-flex; }
+
+  /* Sidebar → off-canvas drawer */
+  .pit-sidebar {
+    position: fixed; top: 56px; left: 0; bottom: 0;
+    width: 84vw; max-width: 320px;
+    transform: translateX(-100%);
+    transition: transform 180ms ease;
+    z-index: 50;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+  }
+  .pit-sidebar.is-mobile-open { transform: translateX(0); }
+  .pit-sidebar-backdrop {
+    display: block; position: fixed; inset: 56px 0 0 0;
+    background: rgba(0,0,0,0.55); z-index: 40;
+  }
+
+  /* Right rail → hide shell + expanded panel; overlay when toggled */
+  .pit-right-shell { display: none; }
+  .pit-right { display: none; }
+  .pit-right.is-mobile-open {
+    display: flex; position: fixed; top: 56px; right: 0; bottom: 0;
+    width: 88vw; max-width: 340px; z-index: 50;
+    box-shadow: -4px 0 24px rgba(0,0,0,0.4);
+  }
+
+  /* Broadcast bar: hide center telemetry strip + team name to save space */
+  .pit-broadcast-center { display: none; }
+  .pit-team-name { display: none; }
+
+  /* Channel header tighter */
+  .pit-channel-head { padding: 8px 12px; }
+  .pit-channel-purpose { display: none; }
+
+  /* iOS: prevent zoom-on-focus (browser zooms when font-size < 16px) */
+  .pit-compose-input { font-size: 16px; }
+  /* Safe-area inset for home-indicator bar */
+  .pit-channel-compose { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+}

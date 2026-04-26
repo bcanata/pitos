@@ -49,3 +49,31 @@ export function displayName(name: string | null | undefined): string | null {
   if (!isDemoInstance()) return name;
   return anonymizeName(name);
 }
+
+/**
+ * Mask an email address. Keeps the first letter of the local part, the
+ * first letter of the registrable domain, and the public TLD so it still
+ * reads as an email but doesn't leak the provider:
+ *   "bugra@radio.org.tr" → "b****@r****.tr"
+ *   "alice@gmail.com"    → "a****@g****.com"
+ */
+export function anonymizeEmail(email: string | null | undefined): string {
+  if (!email) return "—";
+  const at = email.indexOf("@");
+  if (at <= 0) return "—";
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  const localMasked = (local[0] ?? "?") + "****";
+  const tld = domain.split(".").slice(-1)[0] ?? "";
+  const domainMasked = (domain[0] ?? "?") + "****" + (tld ? "." + tld : "");
+  return `${localMasked}@${domainMasked}`;
+}
+
+/**
+ * Render-side email address — same demo-instance toggle as displayName.
+ */
+export function displayEmail(email: string | null | undefined): string | null {
+  if (email == null) return null;
+  if (!isDemoInstance()) return email;
+  return anonymizeEmail(email);
+}

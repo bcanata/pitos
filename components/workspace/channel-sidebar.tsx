@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/client";
 import { LiveDot } from "./broadcast-atoms";
+import { useMobileShell } from "@/lib/mobile-shell-context";
 
 type LastMessage = {
   id: string;
@@ -86,6 +87,7 @@ export default function ChannelSidebar({ team, channels, currentUserId }: Props)
   const t = useT();
   const router = useRouter();
   const pathname = usePathname();
+  const { sidebarOpen, setSidebarOpen } = useMobileShell();
 
   const [deltas, setDeltas] = useState<Map<string, ChannelDelta>>(new Map());
   const [, setTeamOverride] = useState<Partial<SidebarTeam>>({});
@@ -265,7 +267,15 @@ export default function ChannelSidebar({ team, channels, currentUserId }: Props)
   ];
 
   return (
-    <aside className="pit-sidebar pit-scroll">
+    <>
+      {sidebarOpen && (
+        <div
+          className="pit-sidebar-backdrop"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <aside className={cn("pit-sidebar pit-scroll", sidebarOpen && "is-mobile-open")}>
       <div className="pit-side-header">
         <div className="pit-eyebrow">CHANNEL</div>
         <div className="pit-side-channels-head">
@@ -341,6 +351,7 @@ export default function ChannelSidebar({ team, channels, currentUserId }: Props)
           </button>
         </form>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

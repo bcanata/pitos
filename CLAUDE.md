@@ -44,6 +44,8 @@ Next.js 16 App Router · TypeScript · Tailwind v4 · shadcn/ui · LibSQL (`@lib
 
 Uses `@libsql/client` (async LibSQL driver). Local dev: `file:./pitos.db`. Production: `TURSO_DATABASE_URL` (free 9 GB at turso.tech). Run `npm run db:push` locally after any schema change, then `npx drizzle-kit generate` to update the migration file for production.
 
+**Vercel does NOT auto-apply migrations to Turso.** A `vercel --prod` deploy ships the new code but leaves the prod DB on its previous schema, so any new SELECT/INSERT against added columns 500s instantly (the demo at `pitos.8092.tr` has been bitten by this). After every schema change you ship, also apply the migration to prod — load `.env.turso` and either run `npx drizzle-kit push` against the Turso URL, or execute the generated `drizzle/<NNNN>_*.sql` directly via the libsql client. Verify with `PRAGMA table_info('<table>')` before redeploying.
+
 JSON columns use `text({ mode: 'json' })` — cast types at the call site with `as`.
 
 **All DB calls are async (LibSQL).** Use `await db.select(...).get()`, `await db.select(...).all()`, `await db.insert(...).values(...)` — no `.run()`. Only `anthropic.messages.create()`, fetch, and DB calls are async.

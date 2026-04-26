@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, Loader2, Send } from "lucide-react";
+import { ArrowDown, Loader2, PanelRight, Send } from "lucide-react";
 import MessageBubble from "./message-bubble";
 import { useT } from "@/lib/i18n/client";
 import { LiveDot, Telemetry } from "./broadcast-atoms";
+import { useMobileShell } from "@/lib/mobile-shell-context";
 import type { ActiveRole } from "@/lib/auth/rank";
 
 interface Message {
@@ -47,6 +48,7 @@ export default function ChannelView({
 }: Props) {
   const t = useT();
   const router = useRouter();
+  const { toggleRight } = useMobileShell();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -385,6 +387,14 @@ export default function ChannelView({
               { label: "AGENT", value: agentCount },
             ]}
           />
+          <button
+            type="button"
+            onClick={toggleRight}
+            className="pit-icon-btn pit-mobile-rightpanel-toggle"
+            aria-label="Open agent activity"
+          >
+            <PanelRight size={14} />
+          </button>
         </div>
       </div>
 

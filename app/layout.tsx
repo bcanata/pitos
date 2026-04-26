@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Saira_Condensed, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -25,6 +25,13 @@ const jetbrainsMono = JetBrains_Mono({
   weight: ["400", "500", "700"],
   subsets: ["latin"],
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#512f75",
+};
 
 export const metadata: Metadata = {
   title: "PitOS",

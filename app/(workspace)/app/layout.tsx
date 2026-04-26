@@ -8,6 +8,7 @@ import ChannelSidebar from "@/components/workspace/channel-sidebar";
 import CommandPalette from "@/components/workspace/command-palette";
 import BroadcastBar from "@/components/workspace/broadcast-bar";
 import { displayName } from "@/lib/demo";
+import { MobileShellProvider } from "@/lib/mobile-shell-context";
 
 export default async function WorkspaceAppLayout({ children }: { children: React.ReactNode }) {
   const { user } = await getSession();
@@ -68,17 +69,19 @@ export default async function WorkspaceAppLayout({ children }: { children: React
           { label: "DEC LOG", value: decisionCount },
         ]}
       />
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        <ChannelSidebar
-          team={team}
-          channels={sidebarChannels}
-          currentUserId={membership?.userId ?? null}
-        />
-        <main className="flex-1 overflow-hidden min-w-0">{children}</main>
-        <CommandPalette
-          channels={sidebarChannels.map((c) => ({ id: c.id, name: c.name }))}
-        />
-      </div>
+      <MobileShellProvider>
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          <ChannelSidebar
+            team={team}
+            channels={sidebarChannels}
+            currentUserId={membership?.userId ?? null}
+          />
+          <main className="flex-1 overflow-hidden min-w-0">{children}</main>
+          <CommandPalette
+            channels={sidebarChannels.map((c) => ({ id: c.id, name: c.name }))}
+          />
+        </div>
+      </MobileShellProvider>
     </div>
   );
 }
