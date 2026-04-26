@@ -25,7 +25,9 @@ jobs:
       ANTHROPIC_API_KEY: ci-placeholder-key
       AUTH_SECRET: ci-placeholder-secret-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       APP_URL: http://localhost:3000
-      DATABASE_URL: file:./pitos.db
+      # libsql URL form — DB lives in tmp so we don't pollute the workspace
+      # and don't trip the cwd-joining branch in resolveDbConfig.
+      TURSO_DATABASE_URL: file:/tmp/pitos-ci.db
 
     steps:
       - name: Checkout
