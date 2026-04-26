@@ -1,0 +1,52 @@
+name: Agent job cron
+
+# Vercel's Hobby plan caps cron to once per day, but the persistent agent
+# queue wants tighter retries when a function instance dies mid-stream.
+# GitHub Actions schedules are free up to 5-minute resolution and run
+# independently of Vercel's plan tier.
+#
+# Setup (one-time):
+#   1. Add CRON_SECRET to Vercel env (Production scope) so the route
+#      validates the bearer token.
+#   2. Add the same CRON_SECRET to GitHub repo Secrets so this workflow
+#      can present it. Settings -> Secrets and variables -> Actions.
+#   3. Add APP_URL secret pointing at the prod URL (e.g. https://pitos.8092.tr).
+#
+# If the secrets aren't set the workflow no-ops gracefully (warns, exit 0).
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: agent-job-cron
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    name: poke /api/cron/agent-jobs
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Hit the endpoint
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::warning ::APP_URL or CRON_SECRET secret is not set; skipping."
+            exit 0
+          fi
+          response=$(curl -sS -m 60 -w "\n%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/agent-jobs")
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
+          echo "status=$status"
+          echo "body=$body"
+          if [ "$status" -ne 200 ]; then
+            echo "::error ::cron endpoint returned $status"
+            exit 1
+          fi
