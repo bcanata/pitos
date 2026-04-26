@@ -1,7 +1,9 @@
 import { subscribe } from "@/lib/sse";
 import { db } from "@/db";
-import { messages, tasks } from "@/db/schema";
-import { eq, gt, and } from "drizzle-orm";
+import { messages, tasks, users } from "@/db/schema";
+import { eq, gt, and, isNotNull } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
+import { displayName } from "@/lib/demo";
 
 export const runtime = "nodejs"; // SSE needs Node.js runtime
 
@@ -38,6 +40,7 @@ export async function GET(
       // Initial floor: now() so we don't replay history on connect.
       let messageFloor = new Date();
       let taskFloor = new Date();
+      let deleteFloor = new Date();
 
       const poll = async () => {
         try {
@@ -63,6 +66,47 @@ export async function GET(
             sent.add("t:" + t.id);
             send(`data: ${JSON.stringify({ type: "task_created", data: t })}\n\n`);
             if (t.createdAt > taskFloor) taskFloor = t.createdAt;
+          }
+
+          // Soft deletes: poll for rows whose deletedAt has crossed the
+          // floor since last tick. We only need id + deletedAt + deleter
+          // name on the wire; the client patches its existing in-memory row.
+          const deleter = alias(users, "deleter");
+          const newDeletes = await db
+            .select({
+              id: messages.id,
+              channelId: messages.channelId,
+              deletedAt: messages.deletedAt,
+              deletedByUserId: messages.deletedByUserId,
+              deletedByName: deleter.name,
+            })
+            .from(messages)
+            .leftJoin(deleter, eq(messages.deletedByUserId, deleter.id))
+            .where(
+              and(
+                eq(messages.channelId, channelId),
+                isNotNull(messages.deletedAt),
+                gt(messages.deletedAt, deleteFloor),
+              ),
+            )
+            .all();
+          for (const d of newDeletes) {
+            const dedupKey = "d:" + d.id;
+            if (sent.has(dedupKey)) continue;
+            sent.add(dedupKey);
+            send(
+              `data: ${JSON.stringify({
+                type: "message_deleted",
+                data: {
+                  id: d.id,
+                  channelId: d.channelId,
+                  deletedAt: d.deletedAt,
+                  deletedByUserId: d.deletedByUserId,
+                  deletedByName: displayName(d.deletedByName),
+                },
+              })}\n\n`,
+            );
+            if (d.deletedAt && d.deletedAt > deleteFloor) deleteFloor = d.deletedAt;
           }
 
           // Decisions are team-scoped, not channel-scoped — they reach the

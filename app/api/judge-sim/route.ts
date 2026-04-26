@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { memberships, judgeSessions } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { startJudgeSim } from "@/lib/agents/judge-sim-agent";
+import { checkAgentRateLimit, rateLimitMessage } from "@/lib/agents/rate-limit";
 
 export async function POST(req: Request) {
   const { user } = await getSession();
@@ -23,6 +24,14 @@ export async function POST(req: Request) {
 
   if (!membership) {
     return NextResponse.json({ error: "Not a team member" }, { status: 403 });
+  }
+
+  const limit = await checkAgentRateLimit({ userId: user.id });
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "rate_limited", reason: limit.reason, message: rateLimitMessage(limit) },
+      { status: 429 },
+    );
   }
 
   try {

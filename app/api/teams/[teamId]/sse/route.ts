@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { memberships, messages, channels, tasks, decisions, agentRuns, users } from "@/db/schema";
 import { and, eq, gt, inArray } from "drizzle-orm";
 import { subscribeTeam } from "@/lib/sse";
+import { displayName } from "@/lib/demo";
 
 export const runtime = "nodejs";
 
@@ -81,7 +82,8 @@ export async function GET(
           for (const m of newMsgs) {
             if (sent.has("m:" + m.id)) continue;
             sent.add("m:" + m.id);
-            send(`data: ${JSON.stringify({ type: "message", data: m })}\n\n`);
+            const masked = { ...m, senderName: displayName(m.senderName) };
+            send(`data: ${JSON.stringify({ type: "message", data: masked })}\n\n`);
             if (m.createdAt > messageFloor) messageFloor = m.createdAt;
           }
 

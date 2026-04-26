@@ -182,6 +182,12 @@ export const messages = sqliteTable(
     }),
     metadata: text("metadata", { mode: "json" }), // tool calls, citations, refs
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    // Soft delete — keeps the row so [msg:ID] citation chips still resolve.
+    // Bubble renders a muted "[message deleted by NAME]" tombstone in place of
+    // the body. Author/agent stays in place; only deletedAt + deletedByUserId
+    // are written. See lib/auth/scope.ts canDeleteMessage for the rank rule.
+    deletedAt: integer("deleted_at", { mode: "timestamp" }),
+    deletedByUserId: text("deleted_by_user_id").references(() => users.id),
   },
   (t) => [
     // Composite index drives every channel-feed query: filter by channelId,

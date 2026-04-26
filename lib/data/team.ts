@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { seedTeamForUser } from "@/lib/seed";
+import { displayName } from "@/lib/demo";
 
 /**
  * Thrown by `loadTeamWorkspace` when the user has a membership but it's still
@@ -191,7 +192,7 @@ export async function loadTeamWorkspace(userId: string): Promise<TeamWorkspaceDa
       lastMessage: last
         ? {
             id: last.id,
-            senderName: last.agentGenerated ? "PitOS" : last.senderName,
+            senderName: last.agentGenerated ? "PitOS" : displayName(last.senderName),
             agentGenerated: last.agentGenerated,
             contentPreview: last.content.slice(0, 80),
             createdAt: last.createdAt,

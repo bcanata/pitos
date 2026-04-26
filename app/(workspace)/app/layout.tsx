@@ -7,6 +7,7 @@ import { and, eq } from "drizzle-orm";
 import ChannelSidebar from "@/components/workspace/channel-sidebar";
 import CommandPalette from "@/components/workspace/command-palette";
 import BroadcastBar from "@/components/workspace/broadcast-bar";
+import { displayName } from "@/lib/demo";
 
 export default async function WorkspaceAppLayout({ children }: { children: React.ReactNode }) {
   const { user } = await getSession();
@@ -51,7 +52,9 @@ export default async function WorkspaceAppLayout({ children }: { children: React
   }));
 
   const wireTeam = { id: team.id, name: team.name, number: team.number };
-  const wireUser = { id: user.id, name: user.name };
+  // displayName masks personal names on the public demo instance only —
+  // see lib/demo.ts. Team name + number stay unmasked.
+  const wireUser = { id: user.id, name: displayName(user.name) };
 
   return (
     <div className="pit-root flex flex-col h-screen bg-background overflow-hidden">

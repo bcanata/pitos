@@ -594,6 +594,33 @@ html:not(.dark) {
 .pit-msg-agent .pit-msg-author { color: var(--pit-red); letter-spacing: 0.18em; }
 .pit-msg-thinking { opacity: 0.8; }
 
+/* Tombstone — replaces the message body when soft-deleted. */
+.pit-msg-tombstone {
+  padding: 6px 12px;
+  margin-bottom: 2px;
+  font-size: 12px;
+  color: var(--pit-text-4);
+  font-style: italic;
+}
+
+/* Hover trash — sits in the message head row, fades in on bubble hover. */
+.pit-msg-trash {
+  margin-left: auto;
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  color: var(--pit-text-3);
+  border: 1px solid var(--pit-line);
+  border-radius: var(--pit-radius);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s, opacity 0.12s;
+}
+.pit-msg-trash:hover {
+  color: var(--pit-red);
+  border-color: var(--pit-red);
+  background: var(--pit-red-soft);
+}
+
 /* Citations */
 .pit-citations {
   margin-top: 8px;

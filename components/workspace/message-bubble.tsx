@@ -2,11 +2,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { ArrowUpRight, Gavel } from "lucide-react";
+import { ArrowUpRight, Gavel, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import { Avatar } from "./broadcast-atoms";
+import { canDeleteMessage, type ActiveRole } from "@/lib/auth/rank";
 
 // Internal sentinel URL — `[msg:ID]` markers in agent text get pre-processed
 // into markdown links pointing here, then the custom `a` renderer below
@@ -64,6 +65,10 @@ interface Message {
   juryReflexKind: string | null;
   senderName?: string | null;
   createdAt: string;
+  authorRole?: ActiveRole | null;
+  deletedAt?: string | null;
+  deletedByUserId?: string | null;
+  deletedByName?: string | null;
 }
 
 const reflexLabels: Record<string, string> = {
@@ -201,6 +206,12 @@ function MessageBody({ content }: { content: string }) {
 interface Props {
   message: Message;
   currentUserId?: string | null;
+  // Viewer's role — drives whether the trash icon appears on hover. Pass
+  // through from ChannelView (which gets it from the workspace layout).
+  viewerRole?: ActiveRole;
+  // Click handler from ChannelView. Optimistically tombstones the bubble,
+  // then fires DELETE /api/channels/.../messages/:id and reconciles via SSE.
+  onDelete?: (messageId: string) => void;
 }
 
 // Format timestamp using 24h locale-independent HH:MM — broadcast feel.
@@ -211,14 +222,46 @@ function formatTime(iso: string): string {
   return `${h}:${m}`;
 }
 
-export default function MessageBubble({ message, currentUserId }: Props) {
+export default function MessageBubble({ message, currentUserId, viewerRole, onDelete }: Props) {
   const isAgent = message.agentGenerated;
   const isOwn = !!currentUserId && message.userId === currentUserId;
   const time = formatTime(message.createdAt);
+  const isDeleted = !!message.deletedAt;
+
+  // Tombstone — render in place of the body when soft-deleted. Keeps the
+  // row in the DOM so [msg:ID] anchors still resolve and the deeplink
+  // highlight from /api/messages/:id/locate still finds the right element.
+  if (isDeleted) {
+    return (
+      <div
+        id={`msg-${message.id}`}
+        className="msg-anchor pit-msg pit-msg-tombstone"
+      >
+        <em>
+          [message deleted{message.deletedByName ? ` by ${message.deletedByName}` : ""}]
+        </em>
+      </div>
+    );
+  }
+
+  // Decide whether the viewer can delete this message. Server still
+  // enforces — this is just to hide the affordance for callers who can't.
+  const canDelete =
+    !!viewerRole &&
+    !!onDelete &&
+    canDeleteMessage(viewerRole, message.agentGenerated ? null : message.authorRole ?? null);
+
+  function handleDeleteClick(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!onDelete) return;
+    if (!confirm("Delete this message?")) return;
+    onDelete(message.id);
+  }
 
   if (isAgent) {
     return (
-      <div id={`msg-${message.id}`} className="msg-anchor pit-msg pit-msg-agent">
+      <div id={`msg-${message.id}`} className="msg-anchor pit-msg pit-msg-agent group">
         <div className="pit-msg-head">
           <span className="pit-display pit-msg-author">PITOS</span>
           <span className="pit-msg-time pit-mono">{time}</span>
@@ -227,6 +270,17 @@ export default function MessageBubble({ message, currentUserId }: Props) {
               <Gavel size={10} />
               {reflexLabels[message.juryReflexKind] ?? message.juryReflexKind}
             </span>
+          )}
+          {canDelete && (
+            <button
+              type="button"
+              onClick={handleDeleteClick}
+              className="pit-msg-trash opacity-0 group-hover:opacity-100"
+              aria-label="Delete message"
+              title="Delete message"
+            >
+              <Trash2 size={11} />
+            </button>
           )}
         </div>
         <div className="pit-msg-body" style={{ paddingLeft: 0 }}>
@@ -241,12 +295,23 @@ export default function MessageBubble({ message, currentUserId }: Props) {
   return (
     <div
       id={`msg-${message.id}`}
-      className={cn("msg-anchor pit-msg", isOwn && "pit-msg-rail-blue")}
+      className={cn("msg-anchor pit-msg group", isOwn && "pit-msg-rail-blue")}
     >
       <div className="pit-msg-head">
         <Avatar name={displayName} />
         <span className="pit-msg-author">{displayName}</span>
         <span className="pit-msg-time pit-mono">{time}</span>
+        {canDelete && (
+          <button
+            type="button"
+            onClick={handleDeleteClick}
+            className="pit-msg-trash opacity-0 group-hover:opacity-100"
+            aria-label="Delete message"
+            title="Delete message"
+          >
+            <Trash2 size={11} />
+          </button>
+        )}
       </div>
       <MessageBody content={message.content} />
     </div>

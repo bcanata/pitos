@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { memberships, generatedDocuments } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { runSeasonRecap } from "@/lib/agents/season-recap-agent";
+import { checkAgentRateLimit, rateLimitMessage } from "@/lib/agents/rate-limit";
 
 export async function GET() {
   const { user } = await getSession();
@@ -41,6 +42,14 @@ export async function POST() {
 
   const membership = await db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
   if (!membership) return NextResponse.json({ error: "Not a team member" }, { status: 403 });
+
+  const limit = await checkAgentRateLimit({ userId: user.id });
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "rate_limited", reason: limit.reason, message: rateLimitMessage(limit) },
+      { status: 429 },
+    );
+  }
 
   runSeasonRecap(membership.teamId).catch(console.error);
 

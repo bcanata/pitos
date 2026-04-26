@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { messages } from "@/db/schema";
 import { notifyChannel, notifyTeam } from "@/lib/sse";
-import { isDemoUser } from "@/lib/demo";
+import { displayName, isDemoUser } from "@/lib/demo";
 import { loadChannelMessages } from "@/lib/data/messages";
 import { requireChannelAccess, scopeErrorResponse } from "@/lib/auth/scope";
 import { enqueueChannelAgentJob } from "@/lib/agents/job-queue";
+import { checkAgentRateLimit, rateLimitMessage } from "@/lib/agents/rate-limit";
 
 type Params = { params: Promise<{ channelId: string }> };
 
@@ -49,6 +50,20 @@ export async function POST(req: Request, { params }: Params) {
   const { content } = await req.json();
   if (!content?.trim()) return NextResponse.json({ error: "Empty message" }, { status: 400 });
 
+  const limit = await checkAgentRateLimit({ userId: user.id });
+  if (!limit.ok) {
+    return NextResponse.json(
+      {
+        error: "rate_limited",
+        reason: limit.reason,
+        used: limit.used,
+        limit: limit.limit,
+        message: rateLimitMessage(limit),
+      },
+      { status: 429 },
+    );
+  }
+
   const message = {
     id: crypto.randomUUID(),
     channelId,
@@ -70,9 +85,16 @@ export async function POST(req: Request, { params }: Params) {
     role: membership.role,
   });
 
-  const eventData = { ...message, senderName: user.name };
+  const eventData = {
+    ...message,
+    senderName: displayName(user.name),
+    authorRole: membership.role,
+    deletedAt: null,
+    deletedByUserId: null,
+    deletedByName: null,
+  };
   notifyChannel(channelId, { type: "message", data: eventData });
   notifyTeam(membership.teamId, { type: "message", data: eventData });
 
-  return NextResponse.json({ message });
+  return NextResponse.json({ message: eventData });
 }

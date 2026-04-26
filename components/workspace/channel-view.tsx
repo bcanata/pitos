@@ -5,6 +5,7 @@ import { ArrowDown, Loader2, Send } from "lucide-react";
 import MessageBubble from "./message-bubble";
 import { useT } from "@/lib/i18n/client";
 import { LiveDot, Telemetry } from "./broadcast-atoms";
+import type { ActiveRole } from "@/lib/auth/rank";
 
 interface Message {
   id: string;
@@ -16,6 +17,12 @@ interface Message {
   juryReflexKind: string | null;
   senderName?: string | null;
   createdAt: string;
+  // Author's role inside the team — null for agent messages or orphan
+  // authors. Drives whether the trash icon shows for the viewer.
+  authorRole?: ActiveRole | null;
+  deletedAt?: string | null;
+  deletedByUserId?: string | null;
+  deletedByName?: string | null;
 }
 
 interface Props {
@@ -23,13 +30,21 @@ interface Props {
   initialMessages: Message[];
   initialHasMore: boolean;
   currentUserId: string | null;
+  // Viewer info — used by MessageBubble to gate the delete affordance.
+  viewerRole: ActiveRole;
 }
 
 // Pattern that matches "@pitos" in the user's outgoing message — same as
 // MENTION_PATTERN in lib/agents/pitos-mention.ts.
 const PITOS_MENTION = /(?:^|[^a-z0-9])@pitos\b/i;
 
-export default function ChannelView({ channel, initialMessages, initialHasMore, currentUserId }: Props) {
+export default function ChannelView({
+  channel,
+  initialMessages,
+  initialHasMore,
+  currentUserId,
+  viewerRole,
+}: Props) {
   const t = useT();
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -105,12 +120,55 @@ export default function ChannelView({ channel, initialMessages, initialHasMore, 
           ];
         });
         if (first) setPitosThinkingSince(null);
+      } else if (type === "message_deleted") {
+        // Soft delete — patch the existing row with deletedAt + deletedByName
+        // so MessageBubble flips to the tombstone branch.
+        const d = data as {
+          id: string;
+          deletedAt: string | null;
+          deletedByUserId: string | null;
+          deletedByName: string | null;
+        };
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === d.id
+              ? {
+                  ...m,
+                  deletedAt: d.deletedAt,
+                  deletedByUserId: d.deletedByUserId,
+                  deletedByName: d.deletedByName,
+                }
+              : m,
+          ),
+        );
       } else if (type === "channels_updated") {
         router.refresh();
       }
     };
     return () => es.close();
   }, [channel.id, router]);
+
+  // Optimistic delete — flip the bubble to a tombstone right away, then
+  // call the API. The server's SSE event will reconcile the deletedByName.
+  async function handleDelete(id: string) {
+    const nowIso = new Date().toISOString();
+    setMessages(prev =>
+      prev.map(m =>
+        m.id === id
+          ? { ...m, deletedAt: nowIso, deletedByUserId: currentUserId, deletedByName: m.deletedByName ?? "you" }
+          : m,
+      ),
+    );
+    const res = await fetch(`/api/channels/${channel.id}/messages/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      // Roll back on failure.
+      setMessages(prev =>
+        prev.map(m => (m.id === id ? { ...m, deletedAt: null, deletedByUserId: null, deletedByName: null } : m)),
+      );
+      const j = await res.json().catch(() => ({}) as { error?: string });
+      alert(j.error ?? "Failed to delete message");
+    }
+  }
 
   // Safety: never let the thinking indicator linger more than 30s.
   useEffect(() => {
@@ -276,6 +334,10 @@ export default function ChannelView({ channel, initialMessages, initialHasMore, 
           return [...prev, { ...message, createdAt: new Date(message.createdAt).toISOString() }];
         });
         if (mentionsPitos) setPitosThinkingSince(Date.now());
+      } else if (res.status === 429) {
+        const body = await res.json().catch(() => null);
+        setInput(content); // restore so user doesn't lose what they typed
+        alert(body?.message ?? "Demo limiti doldu.");
       }
     } finally {
       setSending(false);
@@ -353,7 +415,13 @@ export default function ChannelView({ channel, initialMessages, initialHasMore, 
         )}
         <div className="space-y-1.5">
           {messages.map((m) => (
-            <MessageBubble key={m.id} message={m} currentUserId={currentUserId} />
+            <MessageBubble
+              key={m.id}
+              message={m}
+              currentUserId={currentUserId}
+              viewerRole={viewerRole}
+              onDelete={handleDelete}
+            />
           ))}
           {pitosThinkingSince !== null && (
             <div className="pit-msg pit-msg-agent pit-msg-thinking">

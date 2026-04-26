@@ -21,8 +21,10 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { channels, memberships, users } from "@/db/schema";
 import { getSession } from "@/lib/session";
+import { canDeleteMessage as canDeleteMessageByRank, RANK, type ActiveRole as RankRole } from "./rank";
 
-export type ActiveRole = "lead_mentor" | "mentor" | "captain" | "student";
+export type ActiveRole = RankRole;
+export { RANK };
 
 export type SessionUser = typeof users.$inferSelect;
 export type Membership = typeof memberships.$inferSelect;
@@ -96,6 +98,18 @@ export function requireRole(membership: Membership, allowed: readonly ActiveRole
   if (!allowed.includes(membership.role as ActiveRole)) {
     throw new ScopeError(403, "Requires one of: " + allowed.join(", "));
   }
+}
+
+/**
+ * Server-side wrapper around the pure rank check. Pass the author's
+ * Membership when known (look it up by author userId + actor's teamId);
+ * pass null for agent-authored messages or orphan authors.
+ */
+export function canDeleteMessage(actor: Membership, author: Membership | null): boolean {
+  return canDeleteMessageByRank(
+    actor.role as ActiveRole,
+    author ? (author.role as ActiveRole) : null,
+  );
 }
 
 /**

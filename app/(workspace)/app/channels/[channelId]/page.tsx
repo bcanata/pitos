@@ -20,10 +20,13 @@ export default async function ChannelPage({ params }: { params: Promise<{ channe
   const channel = channels.find((c) => c.id === channelId);
   if (!channel) redirect("/app/channels");
 
-  // Serialize Date → ISO string at the server/client boundary.
+  // Serialize Date → ISO strings at the server/client boundary. The loader
+  // already projects authorRole / deletedAt / deletedByName via joins, so
+  // they ride along on `...m`.
   const wireMessages = initialMessages.map((m) => ({
     ...m,
     createdAt: m.createdAt.toISOString(),
+    deletedAt: m.deletedAt ? m.deletedAt.toISOString() : null,
   }));
 
   return (
@@ -34,6 +37,7 @@ export default async function ChannelPage({ params }: { params: Promise<{ channe
           initialMessages={wireMessages}
           initialHasMore={initialHasMore}
           currentUserId={membership?.userId ?? null}
+          viewerRole={membership.role as "lead_mentor" | "mentor" | "captain" | "student"}
         />
       </div>
       <RightPanel channelId={channelId} teamId={membership.teamId} />
