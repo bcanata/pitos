@@ -296,7 +296,7 @@ html:not(.dark) {
   overflow-y: auto;
 }
 .pit-side-ch {
-  display: flex; align-items: center;
+  display: flex; align-items: flex-start;
   gap: 8px;
   padding: 6px 14px;
   text-decoration: none;
@@ -304,6 +304,20 @@ html:not(.dark) {
   border-left: 2px solid transparent;
   font-size: 13px;
 }
+.pit-side-ch-body {
+  flex: 1;
+  min-width: 0;            /* lets the row truncate properly */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pit-side-ch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pit-side-ch-bullet { padding-top: 2px; }   /* nudge to align with name baseline */
 .pit-side-ch:hover { background: var(--pit-mark); color: var(--pit-text-2); }
 .pit-side-ch.has-unread { color: var(--pit-text); }
 .pit-side-ch.is-active {
@@ -323,6 +337,7 @@ html:not(.dark) {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -339,13 +354,14 @@ html:not(.dark) {
   font-family: var(--pit-sans);
   font-size: 11px;
   color: oklch(from var(--pit-text-3) l c h / 0.8);
-  margin: 2px 0 0 22px;
+  margin: 0;                /* now sits inside .pit-side-ch-body, no manual indent */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   letter-spacing: 0;
   text-transform: none;
   font-weight: 400;
+  min-width: 0;
 }
 
 .pit-side-nav {

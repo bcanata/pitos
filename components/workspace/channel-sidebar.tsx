@@ -296,18 +296,22 @@ export default function ChannelSidebar({ team, channels, currentUserId }: Props)
               <span className="pit-side-ch-bullet">
                 {isLive ? <LiveDot /> : <HashGlyph />}
               </span>
-              <span className="pit-side-ch-name">{ch.name}</span>
-              {unread > 0 && !isActive && (
-                <span className="pit-side-ch-unread">
-                  {unread > 99 ? "99+" : unread}
-                </span>
-              )}
-              {last && !unread && (
-                <span className="pit-side-ch-preview" aria-hidden="true">
-                  {last.senderName ?? "?"}: {last.contentPreview}
-                  <span style={{ opacity: 0.6 }}> · {relativeTime(last.createdAt)}</span>
-                </span>
-              )}
+              <div className="pit-side-ch-body">
+                <div className="pit-side-ch-row">
+                  <span className="pit-side-ch-name">{ch.name}</span>
+                  {unread > 0 && !isActive && (
+                    <span className="pit-side-ch-unread">
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  )}
+                </div>
+                {last && !unread && (
+                  <span className="pit-side-ch-preview" aria-hidden="true">
+                    {last.senderName ?? "?"}: {last.contentPreview}
+                    <span style={{ opacity: 0.6 }}> · {relativeTime(last.createdAt)}</span>
+                  </span>
+                )}
+              </div>
             </Link>
           );
         })}
