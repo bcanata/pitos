@@ -21,7 +21,7 @@ import { and, count, eq, gte } from "drizzle-orm";
 
 const PER_USER_DAILY = Number(process.env.RATE_LIMIT_USER_DAILY ?? 20);
 const GLOBAL_DAILY = Number(process.env.RATE_LIMIT_GLOBAL_DAILY ?? 2000);
-const DISABLED = process.env.RATE_LIMIT_DISABLED === "1";
+const DISABLED = process.env.RATE_LIMIT_DISABLED !== "0";
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export type RateLimitDenial = {
