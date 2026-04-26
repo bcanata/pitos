@@ -214,10 +214,13 @@ html:not(.dark) {
 /* ─────────── Top broadcast bar ─────────── */
 .pit-broadcast-bar {
   display: flex; align-items: stretch;
-  height: calc(56px + env(safe-area-inset-top));
+  min-height: calc(56px + env(safe-area-inset-top, 0px));
   background: var(--pit-surface);
   border-bottom: 1px solid var(--pit-line);
-  padding: env(safe-area-inset-top) 14px 0;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: 14px;
+  padding-right: 14px;
+  padding-bottom: 0;
   gap: 16px;
   flex-shrink: 0;
 }

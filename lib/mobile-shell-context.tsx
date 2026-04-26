@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, startTransition } from "react";
 import { usePathname } from "next/navigation";
 
 interface MobileShellCtx {
@@ -28,8 +28,10 @@ export function MobileShellProvider({ children }: { children: React.ReactNode })
 
   // Auto-close both drawers when the route changes (e.g. picking a channel).
   useEffect(() => {
-    setSidebarOpen(false);
-    setRightOpen(false);
+    startTransition(() => {
+      setSidebarOpen(false);
+      setRightOpen(false);
+    });
   }, [pathname]);
 
   return (
