@@ -30,8 +30,8 @@ interface Props {
 export default function BroadcastBar({ team, user, telemetry }: Props) {
   const { toggleSidebar } = useMobileShell();
   const [agentLive, setAgentLive] = useState(false);
-  // Read the html class lazily on first render. The root layout sets `dark`
-  // by default; browsers without DOM (SSR) get "dark" too which matches.
+  // Read applied class — the inline script in layout.tsx has already resolved
+  // localStorage vs system pref before first paint, so this is always correct.
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     if (typeof document === "undefined") return "dark";
     return document.documentElement.classList.contains("dark") ? "dark" : "light";
@@ -66,15 +66,24 @@ export default function BroadcastBar({ team, user, telemetry }: Props) {
     };
   }, [team.id]);
 
+  // Sync with system preference changes when no manual override is saved.
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    function onSystemChange(e: MediaQueryListEvent) {
+      if (localStorage.getItem("pitos-theme")) return;
+      document.documentElement.classList.toggle("dark", e.matches);
+      setTheme(e.matches ? "dark" : "light");
+    }
+    mq.addEventListener("change", onSystemChange);
+    return () => mq.removeEventListener("change", onSystemChange);
+  }, []);
+
   function toggleTheme() {
     const html = document.documentElement;
-    if (html.classList.contains("dark")) {
-      html.classList.remove("dark");
-      setTheme("light");
-    } else {
-      html.classList.add("dark");
-      setTheme("dark");
-    }
+    const next = html.classList.contains("dark") ? "light" : "dark";
+    html.classList.toggle("dark", next === "dark");
+    localStorage.setItem("pitos-theme", next);
+    setTheme(next);
   }
 
   const teamNumber = team.number ?? "—";
