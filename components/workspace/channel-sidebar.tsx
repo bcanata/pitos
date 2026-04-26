@@ -92,11 +92,37 @@ export default function ChannelSidebar({ team, channels, currentUserId }: Props)
   const [lastChannelsKey, setLastChannelsKey] = useState<string>("");
   // Channels with a recent message — used to flash the live dot for ~6s.
   const [liveChannels, setLiveChannels] = useState<Map<string, number>>(new Map());
+  // Channels visited in this client session. Their unread badges should
+  // stay at 0 even after the user navigates away, until the server
+  // re-renders /api/teams/mine with a fresh unreadCount.
+  const [lastVisitedChannel, setLastVisitedChannel] = useState<string | null>(null);
 
   const currentChannelId = useMemo(() => {
     const m = pathname.match(/^\/app\/channels\/([^/]+)/);
     return m?.[1] ?? null;
   }, [pathname]);
+
+  // When the user enters a channel, write a sticky unreadOverride=0 into
+  // its delta. The render path already prefers `unreadOverride` over the
+  // server-rendered baseUnread, so the badge stays cleared after they
+  // leave. Render-phase setState (not in an effect) so React 19's
+  // set-state-in-effect lint stays happy.
+  if (currentChannelId && currentChannelId !== lastVisitedChannel) {
+    setLastVisitedChannel(currentChannelId);
+    setDeltas((prev) => {
+      const existing = prev.get(currentChannelId) ?? {};
+      if (existing.unreadOverride === 0 && existing.unreadDelta === 0) {
+        return prev;
+      }
+      const next = new Map(prev);
+      next.set(currentChannelId, {
+        ...existing,
+        unreadOverride: 0,
+        unreadDelta: 0,
+      });
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (!team.id) return;
