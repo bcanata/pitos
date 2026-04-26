@@ -1113,10 +1113,11 @@ html:not(.dark) {
 .pit-scroll::-webkit-scrollbar-track { background: transparent; }
 
 /* ─────────── Mobile (≤ 767.98px) ─────────── */
-/* Desktop-hide the mobile-only triggers (avoids display-none fighting @media order) */
+/* Desktop-hide the mobile-only triggers and mobile overlay (avoids fighting @media order) */
 .pit-mobile-hamburger,
 .pit-mobile-rightpanel-toggle,
-.pit-sidebar-backdrop { display: none; }
+.pit-sidebar-backdrop,
+.pit-right-overlay { display: none; }
 
 @media (max-width: 767.98px) {
   /* Mobile-only triggers become visible */
@@ -1127,6 +1128,7 @@ html:not(.dark) {
   .pit-sidebar {
     position: fixed; top: calc(56px + env(safe-area-inset-top)); left: 0; bottom: 0;
     width: 84vw; max-width: 320px;
+    height: auto; overflow-y: auto;
     transform: translateX(-100%);
     transition: transform 180ms ease;
     z-index: 50;
@@ -1139,13 +1141,15 @@ html:not(.dark) {
     background: rgba(0,0,0,0.55); z-index: 40;
   }
 
-  /* Right rail → hide shell + expanded panel; overlay when toggled */
+  /* Right rail → hide desktop shell; overlay when toggled */
   .pit-right-shell { display: none; }
-  .pit-right { display: none; }
-  .pit-right.is-mobile-open {
+  .pit-right-overlay.is-mobile-open {
     display: flex; position: fixed;
     top: calc(56px + env(safe-area-inset-top)); right: 0; bottom: 0;
     width: 88vw; max-width: 340px; z-index: 50;
+    background: var(--pit-surface);
+    border-left: 1px solid var(--pit-line);
+    flex-direction: column; min-height: 0;
     box-shadow: -4px 0 24px rgba(0,0,0,0.4);
   }
 

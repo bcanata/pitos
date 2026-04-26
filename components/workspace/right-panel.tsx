@@ -68,7 +68,7 @@ export default function RightPanel({ channelId, teamId }: Props) {
       </div>
 
       {/* Mobile: slide-in overlay, triggered by header button */}
-      <div className={`pit-right${rightOpen ? " is-mobile-open" : ""}`}>
+      <div className={`pit-right-overlay${rightOpen ? " is-mobile-open" : ""}`}>
         {panelContent}
       </div>
     </>
