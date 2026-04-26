@@ -58,7 +58,7 @@ export default async function WorkspaceAppLayout({ children }: { children: React
   const wireUser = { id: user.id, name: displayName(user.name) };
 
   return (
-    <div className="pit-root flex flex-col h-screen bg-background overflow-hidden">
+    <div className="pit-root flex flex-col h-dvh bg-background overflow-hidden">
       <MobileShellProvider>
         <BroadcastBar
           team={wireTeam}

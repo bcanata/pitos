@@ -466,7 +466,10 @@ html:not(.dark) {
 
 .pit-channel-compose {
   border-top: 1px solid var(--pit-line);
-  padding: 10px 24px 14px;
+  padding-top: 10px;
+  padding-left: 24px;
+  padding-right: 24px;
+  padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
   display: flex; flex-direction: column; gap: 8px;
   background: var(--pit-surface);
   flex-shrink: 0;
@@ -1146,9 +1149,10 @@ html:not(.dark) {
     box-shadow: -4px 0 24px rgba(0,0,0,0.4);
   }
 
-  /* Broadcast bar: hide center telemetry strip + team name to save space */
+  /* Broadcast bar: hide center telemetry strip + team name; push right group to edge */
   .pit-broadcast-center { display: none; }
   .pit-team-name { display: none; }
+  .pit-broadcast-right { margin-left: auto; }
 
   /* Channel header tighter */
   .pit-channel-head { padding: 8px 12px; }
@@ -1156,6 +1160,4 @@ html:not(.dark) {
 
   /* iOS: prevent zoom-on-focus (browser zooms when font-size < 16px) */
   .pit-compose-input { font-size: 16px; }
-  /* Safe-area inset for home-indicator bar */
-  .pit-channel-compose { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
 }
