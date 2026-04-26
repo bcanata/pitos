@@ -1,11 +1,10 @@
 "use client";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, Bot, Hash, Loader2, Send } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { ArrowDown, Loader2, Send } from "lucide-react";
 import MessageBubble from "./message-bubble";
 import { useT } from "@/lib/i18n/client";
+import { LiveDot, Telemetry } from "./broadcast-atoms";
 
 interface Message {
   id: string;
@@ -290,23 +289,53 @@ export default function ChannelView({ channel, initialMessages, initialHasMore, 
     }
   }
 
+  // Counts for the broadcast telemetry strip.
+  const totalCount = messages.length;
+  const todayCount = messages.filter((m) => {
+    const d = new Date(m.createdAt);
+    const now = new Date();
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  }).length;
+  const agentCount = messages.filter((m) => m.agentGenerated).length;
+
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border shrink-0">
-        <Hash size={18} className="text-muted-foreground" />
-        <h1 className="font-semibold">{channel.name}</h1>
-        {channel.description && (
-          <span className="text-sm text-muted-foreground border-l border-border pl-3">{channel.description}</span>
-        )}
+    <div className="pit-channel">
+      {/* Header — broadcast headline */}
+      <div className="pit-channel-head">
+        <div className="pit-channel-head-left">
+          <span style={{ color: "var(--pit-red)" }}>
+            <LiveDot />
+          </span>
+          <h1 className="pit-display pit-channel-name"># {channel.name}</h1>
+          {channel.description && (
+            <span className="pit-channel-purpose">{channel.description}</span>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <Telemetry
+            items={[
+              { label: "MSGS", value: totalCount },
+              { label: "TODAY", value: todayCount },
+              { label: "AGENT", value: agentCount },
+            ]}
+          />
+        </div>
       </div>
 
-      {/* Messages — plain div so overflow-y-auto works reliably in flex column */}
-      <div ref={scrollRef} className="relative flex-1 min-h-0 overflow-y-auto px-4 py-4">
+      {/* Stream */}
+      <div ref={scrollRef} className="pit-channel-stream pit-scroll relative">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-sm font-medium text-muted-foreground">{t("channel.empty")}</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">{t("channel.emptyHint")}</p>
+            <p className="pit-eyebrow" style={{ fontSize: 11 }}>
+              {t("channel.empty")}
+            </p>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              {t("channel.emptyHint")}
+            </p>
           </div>
         )}
         {messages.length > 0 && (
@@ -316,25 +345,26 @@ export default function ChannelView({ channel, initialMessages, initialHasMore, 
                 <Loader2 size={12} className="animate-spin" /> Loading older messages…
               </span>
             ) : hasMore ? null : (
-              <span className="text-muted-foreground/50">Beginning of channel</span>
+              <span className="pit-eyebrow" style={{ fontSize: 9 }}>
+                · BEGINNING OF CHANNEL ·
+              </span>
             )}
           </div>
         )}
         <div className="space-y-1.5">
-          {messages.map(m => (
+          {messages.map((m) => (
             <MessageBubble key={m.id} message={m} currentUserId={currentUserId} />
           ))}
           {pitosThinkingSince !== null && (
-            <div className="px-3 py-2.5 rounded-lg border-l-[3px] border-primary/60 bg-primary/5 ml-0 animate-pulse">
-              <div className="flex items-center gap-2">
-                <Bot size={13} className="text-primary shrink-0" />
-                <span className="text-xs font-semibold text-primary">PitOS</span>
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: "300ms" }} />
+            <div className="pit-msg pit-msg-agent pit-msg-thinking">
+              <div className="pit-msg-head">
+                <span className="pit-display pit-msg-author">PITOS</span>
+                <span className="pit-eyebrow pit-msg-time">PROCESSING</span>
+                <span className="pit-thinking">
+                  <i />
+                  <i />
+                  <i />
                 </span>
-                <span className="text-xs text-muted-foreground italic">thinking…</span>
               </div>
             </div>
           )}
@@ -345,30 +375,44 @@ export default function ChannelView({ channel, initialMessages, initialHasMore, 
             type="button"
             onClick={scrollToBottom}
             aria-label="Scroll to latest"
-            className="sticky bottom-4 float-right mr-1 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition w-9 h-9"
+            className="sticky bottom-4 float-right mr-1 inline-flex items-center justify-center rounded-full transition w-9 h-9"
+            style={{
+              background: "var(--pit-red)",
+              color: "white",
+              boxShadow: "0 8px 20px rgba(0,0,0,0.35)",
+            }}
           >
             <ArrowDown size={16} />
           </button>
         )}
       </div>
 
-      {/* Input */}
-      <form onSubmit={sendMessage} className="px-4 py-3 border-t border-border shrink-0">
-        <div className="flex gap-2 items-end">
-          <Textarea
+      {/* Compose */}
+      <form onSubmit={sendMessage} className="pit-channel-compose">
+        <div className="pit-compose-row">
+          <textarea
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={t("channel.messagePlaceholder", { name: channel.name })}
             rows={1}
-            className="flex-1 min-h-[40px] max-h-[120px] resize-none"
+            className="pit-compose-input"
             disabled={sending}
           />
-          <Button type="submit" size="icon" disabled={sending || !input.trim()}>
-            <Send size={16} />
-          </Button>
+          <button
+            type="submit"
+            className="pit-btn pit-btn-primary"
+            disabled={sending || !input.trim()}
+          >
+            <Send size={13} /> Send
+          </button>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">{t("channel.sendHint")}</p>
+        <div className="pit-compose-hints">
+          <span>
+            <kbd>⏎</kbd> send · <kbd>⇧⏎</kbd> newline
+          </span>
+          <span style={{ marginLeft: "auto" }}>@pitos to summon</span>
+        </div>
       </form>
     </div>
   );

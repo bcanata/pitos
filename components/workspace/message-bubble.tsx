@@ -2,10 +2,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { ArrowUpRight, Bot, Gavel } from "lucide-react";
+import { ArrowUpRight, Gavel } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
+import { Avatar } from "./broadcast-atoms";
 
 // Internal sentinel URL — `[msg:ID]` markers in agent text get pre-processed
 // into markdown links pointing here, then the custom `a` renderer below
@@ -37,22 +38,17 @@ function CitationChip({ messageId }: { messageId: string }) {
       }}
       title={`Open cited message ${messageId.slice(0, 8)}…`}
       className={cn(
-        "inline-flex items-baseline align-baseline gap-0.5 rounded border border-primary/30 bg-primary/10 px-1 py-0",
-        "text-[10px] font-medium text-primary leading-none",
-        "hover:bg-primary/20 hover:border-primary/50",
-        "transition-colors mx-0.5",
+        "pit-cite-chip",
         resolving && "opacity-60",
       )}
+      style={{ padding: "0 5px" }}
     >
-      <ArrowUpRight size={9} className="-mb-0.5" />
+      <ArrowUpRight size={9} />
       ref
     </button>
   );
 }
 
-// Pre-process the message text so [msg:ID] tokens render as clickable chips.
-// The trick: rewrite them as markdown links pointing at our sentinel URL,
-// then intercept them in the `a` renderer.
 function inlineCitationsToMarkdown(content: string): string {
   return content.replace(/\[msg:([a-zA-Z0-9-]+)\]/g, (_, id) => {
     return `[msg-cite](${CITE_PREFIX}${id})`;
@@ -76,8 +72,6 @@ const reflexLabels: Record<string, string> = {
   teach_redirect: "teach mode",
 };
 
-// Cosmetic badge map for FRC-authoritative domains. Mirrors (and is allowed
-// to drift from) the web_search allowlist in lib/agents/pitos-mention.ts.
 const FRC_DOMAINS: ReadonlyArray<{ host: string; label: string }> = [
   { host: "thebluealliance.com", label: "TBA" },
   { host: "frc-events.firstinspires.org", label: "FRC Events" },
@@ -109,11 +103,6 @@ function frcLabelForUrl(raw: string): string | null {
   }
 }
 
-// Markdown components — minimal styling so it inherits the bubble theme.
-// The two key wins are: (1) **bold** + *italic* + lists + code blocks render,
-// (2) auto-linked URLs get an FRC domain badge,
-// (3) [msg:ID] memory citations render as clickable chips that deeplink
-//     into the right channel after a quick locate lookup.
 const MD_COMPONENTS: Components = {
   a({ href, children }) {
     const url = typeof href === "string" ? href : "";
@@ -214,29 +203,33 @@ interface Props {
   currentUserId?: string | null;
 }
 
+// Format timestamp using 24h locale-independent HH:MM — broadcast feel.
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  const h = d.getHours().toString().padStart(2, "0");
+  const m = d.getMinutes().toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
+
 export default function MessageBubble({ message, currentUserId }: Props) {
   const isAgent = message.agentGenerated;
   const isOwn = !!currentUserId && message.userId === currentUserId;
-  const time = new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const time = formatTime(message.createdAt);
 
   if (isAgent) {
     return (
-      <div
-        id={`msg-${message.id}`}
-        className="msg-anchor px-3 py-2.5 rounded-lg border-l-[3px] border-primary bg-primary/8 ml-0 scroll-mt-16"
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <Bot size={13} className="text-primary shrink-0" />
-          <span className="text-xs font-semibold text-primary">PitOS</span>
-          <span className="text-xs text-muted-foreground">{time}</span>
+      <div id={`msg-${message.id}`} className="msg-anchor pit-msg pit-msg-agent">
+        <div className="pit-msg-head">
+          <span className="pit-display pit-msg-author">PITOS</span>
+          <span className="pit-msg-time pit-mono">{time}</span>
           {message.juryReflexKind && (
-            <span className="inline-flex items-center gap-1 text-xs bg-amber-500/15 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-medium">
+            <span className="pit-chip pit-chip-amber">
               <Gavel size={10} />
               {reflexLabels[message.juryReflexKind] ?? message.juryReflexKind}
             </span>
           )}
         </div>
-        <div className="pl-5">
+        <div className="pit-msg-body" style={{ paddingLeft: 0 }}>
           <MessageBody content={message.content} />
         </div>
       </div>
@@ -248,16 +241,12 @@ export default function MessageBubble({ message, currentUserId }: Props) {
   return (
     <div
       id={`msg-${message.id}`}
-      className={cn(
-        "msg-anchor group px-3 py-2 rounded-lg hover:bg-muted/40 scroll-mt-16",
-        isOwn && "hover:bg-primary/5",
-      )}
+      className={cn("msg-anchor pit-msg", isOwn && "pit-msg-rail-blue")}
     >
-      <div className="flex items-baseline gap-2 mb-0.5">
-        <span className={cn("text-xs font-semibold", isOwn ? "text-primary/70" : "text-foreground/80")}>
-          {displayName}
-        </span>
-        <span className="text-xs text-muted-foreground">{time}</span>
+      <div className="pit-msg-head">
+        <Avatar name={displayName} />
+        <span className="pit-msg-author">{displayName}</span>
+        <span className="pit-msg-time pit-mono">{time}</span>
       </div>
       <MessageBody content={message.content} />
     </div>

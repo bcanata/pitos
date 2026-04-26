@@ -2,17 +2,30 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { MessageSquare, MinusCircle, PlusSquare } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  Circle,
+  Hourglass,
+  Loader2,
+  ListPlus,
+  RotateCw,
+} from "lucide-react";
 import { useT } from "@/lib/i18n/client";
+
+type RunStatus = "queued" | "running" | "completed" | "failed";
 
 interface AgentRun {
   id: string;
+  status?: RunStatus | null;
   action: string | null;
   juryReflexKind: string | null;
   reasoning: string | null;
   output: string | null;
   createdAt: string;
   durationMs: number | null;
+  attempts?: number | null;
+  nextAttemptAt?: string | null;
 }
 
 interface Props {
@@ -22,7 +35,6 @@ interface Props {
 
 function parseAction(run: AgentRun): string {
   if (run.action) return run.action;
-  // Fallback: try to parse output JSON
   if (run.output) {
     try {
       const parsed = JSON.parse(run.output.match(/\{[\s\S]*\}/)?.[0] ?? "{}") as {
@@ -67,65 +79,132 @@ function parseTaskTitle(run: AgentRun): string | null {
 
 function formatTime(dateStr: string): string {
   const d = new Date(dateStr);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const h = d.getHours().toString().padStart(2, "0");
+  const m = d.getMinutes().toString().padStart(2, "0");
+  return `${h}:${m}`;
 }
 
 function ActionIcon({ action }: { action: string }) {
-  if (action === "respond") return <MessageSquare size={12} className="shrink-0" />;
-  if (action === "create_task") return <PlusSquare size={12} className="shrink-0" />;
-  return <MinusCircle size={12} className="shrink-0" />;
+  if (action === "respond") return <ArrowRight size={11} />;
+  if (action === "create_task") return <ListPlus size={11} />;
+  return <Circle size={9} />;
 }
 
 function RunRow({ run }: { run: AgentRun }) {
   const action = parseAction(run);
   const reasoning = parseReasoning(run);
   const taskTitle = action === "create_task" ? parseTaskTitle(run) : null;
+  const status: RunStatus = (run.status as RunStatus | null) ?? "completed";
+  const attempts = run.attempts ?? null;
 
   const t = useT();
 
+  // Job-state rows surface the queue lifecycle: queued / running / failed.
+  // Once the agent completes, the row falls back to the action-based render.
+  if (status === "queued") {
+    return (
+      <div className="pit-feed-row">
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span className="pit-feed-action no_action">
+            <Hourglass size={10} /> queued
+          </span>
+          <span className="pit-feed-time">{formatTime(run.createdAt)}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "running") {
+    return (
+      <div className="pit-feed-row">
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <span className="pit-feed-action respond">
+            <Loader2 size={10} className="animate-spin" /> running…
+          </span>
+          {attempts && attempts > 1 && (
+            <span className="pit-chip pit-chip-amber" style={{ padding: "0 4px" }}>
+              attempt {attempts}
+            </span>
+          )}
+          <span className="pit-feed-time">{formatTime(run.createdAt)}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "failed") {
+    const isRetrying =
+      action === "retrying" ||
+      (run.nextAttemptAt && new Date(run.nextAttemptAt) > new Date());
+    return (
+      <div className="pit-feed-row">
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <span className="pit-feed-action" style={{ color: "var(--pit-red)" }}>
+            {isRetrying ? <RotateCw size={10} /> : <AlertCircle size={10} />}
+            {isRetrying ? "retrying" : "failed"}
+          </span>
+          {attempts && (
+            <span className="pit-chip pit-chip-red" style={{ padding: "0 4px" }}>
+              attempt {attempts}
+            </span>
+          )}
+          <span className="pit-feed-time">{formatTime(run.createdAt)}</span>
+        </div>
+        {reasoning && (
+          <div className="pit-feed-reasoning" style={{ color: "var(--pit-red)" }}>
+            {reasoning.slice(0, 140)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // status === "completed" — original action-based render
   if (action === "no_action") {
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 text-muted-foreground/60">
-        <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
-        <span className="text-xs">{t("agentActivity.noAction")}</span>
-        <span className="text-xs ml-auto opacity-60">{formatTime(run.createdAt)}</span>
+      <div className="pit-feed-row">
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span className="pit-feed-action no_action">
+            <Circle size={9} />
+            {t("agentActivity.noAction")}
+          </span>
+          <span className="pit-feed-time">{formatTime(run.createdAt)}</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div
-      className={cn(
-        "px-3 py-2 border-l-2 text-xs space-y-0.5",
-        action === "respond" && "border-l-teal-500 bg-teal-500/5",
-        action === "create_task" && "border-l-amber-500 bg-amber-500/5",
-        action === "unknown" && "border-l-muted bg-muted/10"
-      )}
-    >
-      <div className="flex items-center gap-1.5">
-        <span
-          className={cn(
-            "inline-flex items-center gap-1 font-medium",
-            action === "respond" && "text-teal-400",
-            action === "create_task" && "text-amber-400",
-            action === "unknown" && "text-muted-foreground"
-          )}
-        >
+    <div className="pit-feed-row">
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        <span className={cn("pit-feed-action", action)}>
           <ActionIcon action={action} />
-          {action}
+          {action.replace("_", " ")}
         </span>
         {run.juryReflexKind && (
-          <span className="text-muted-foreground/70 italic">· {run.juryReflexKind.replace(/_/g, " ")}</span>
+          <span className="pit-chip pit-chip-amber" style={{ padding: "0 4px" }}>
+            {run.juryReflexKind.replace(/_/g, " ")}
+          </span>
         )}
-        <span className="ml-auto text-muted-foreground/60">{formatTime(run.createdAt)}</span>
+        <span className="pit-feed-time">
+          {formatTime(run.createdAt)}
+          {run.durationMs !== null && ` · ${run.durationMs}ms`}
+        </span>
       </div>
       {taskTitle && (
-        <p className="text-amber-300/80 truncate pl-0.5">&ldquo;{taskTitle}&rdquo;</p>
+        <div
+          style={{
+            color: "var(--pit-amber)",
+            fontSize: 11,
+            marginTop: 4,
+            fontStyle: "italic",
+          }}
+        >
+          &ldquo;{taskTitle}&rdquo;
+        </div>
       )}
       {reasoning && action !== "create_task" && (
-        <p className="text-muted-foreground/70 leading-snug line-clamp-2 pl-0.5">
-          {reasoning.slice(0, 100)}
-        </p>
+        <div className="pit-feed-reasoning">{reasoning.slice(0, 100)}</div>
       )}
     </div>
   );
@@ -151,54 +230,79 @@ export default function AgentActivity({ channelId, teamId }: Props) {
     fetchRuns();
   }, [fetchRuns]);
 
-  // Realtime: live agent_run events on the team stream, filtered to this channel.
   useEffect(() => {
     const es = new EventSource(`/api/teams/${teamId}/sse`);
     es.onmessage = (e) => {
       let parsed: { type?: string; data?: unknown } = {};
-      try { parsed = JSON.parse(e.data); } catch { return; }
+      try {
+        parsed = JSON.parse(e.data);
+      } catch {
+        return;
+      }
       if (parsed.type !== "agent_run") return;
       const run = parsed.data as {
         id: string;
         channelId: string;
+        status?: RunStatus | null;
         action: string | null;
         reasoning: string | null;
         durationMs: number | null;
         juryReflexKind?: string | null;
+        attempts?: number | null;
+        nextAttemptAt?: string | null;
       };
       if (run.channelId !== channelId) return;
       setRuns((prev) => {
-        if (prev.find((r) => r.id === run.id)) return prev;
-        return [
-          {
-            id: run.id,
-            action: run.action,
-            juryReflexKind: run.juryReflexKind ?? null,
-            reasoning: run.reasoning,
-            output: null,
-            createdAt: new Date().toISOString(),
-            durationMs: run.durationMs,
-          },
-          ...prev,
-        ].slice(0, 30);
+        const existingIdx = prev.findIndex((r) => r.id === run.id);
+        const next: AgentRun = {
+          id: run.id,
+          status: run.status ?? null,
+          action: run.action,
+          juryReflexKind: run.juryReflexKind ?? null,
+          reasoning: run.reasoning,
+          output: null,
+          createdAt:
+            existingIdx >= 0
+              ? prev[existingIdx].createdAt
+              : new Date().toISOString(),
+          durationMs: run.durationMs,
+          attempts: run.attempts ?? null,
+          nextAttemptAt: run.nextAttemptAt ?? null,
+        };
+        if (existingIdx >= 0) {
+          const copy = prev.slice();
+          copy[existingIdx] = { ...prev[existingIdx], ...next };
+          return copy;
+        }
+        return [next, ...prev].slice(0, 30);
       });
     };
     return () => es.close();
   }, [teamId, channelId]);
 
   return (
-    <div className="flex flex-col min-h-0">
-      <div className="px-3 py-2 border-b border-border">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          {t("agentActivity.title")}
-        </p>
+    <div className="flex flex-col min-h-0 h-full">
+      <div className="pit-right-head">
+        <div>
+          <div className="pit-eyebrow">CONTROL ROOM</div>
+          <div className="pit-display" style={{ fontSize: 13, marginTop: 2 }}>
+            {t("agentActivity.title")}
+          </div>
+        </div>
+        <span className="pit-onair">
+          <span className="pit-livedot" /> LIVE
+        </span>
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="pit-right-body pit-scroll">
         {loading && (
-          <p className="px-3 py-3 text-xs text-muted-foreground">{t("agentActivity.loading")}</p>
+          <p className="pit-eyebrow" style={{ fontSize: 10 }}>
+            {t("agentActivity.loading")}
+          </p>
         )}
         {!loading && runs.length === 0 && (
-          <p className="px-3 py-3 text-xs text-muted-foreground">{t("agentActivity.empty")}</p>
+          <p className="pit-eyebrow" style={{ fontSize: 10 }}>
+            {t("agentActivity.empty")}
+          </p>
         )}
         {runs.map((run) => (
           <RunRow key={run.id} run={run} />

@@ -2,12 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
+import { ArrowUpRight, Plus } from "lucide-react";
 import { useT } from "@/lib/i18n/client";
+import { SectionHead, Telemetry } from "@/components/workspace/broadcast-atoms";
 
 interface Decision {
   id: string;
@@ -20,12 +17,23 @@ interface Decision {
   sourceChannelId: string | null;
 }
 
+// Helper kept outside the component so Date.now() doesn't trip
+// react-hooks/purity during render.
+function countThisWeek(decisions: Decision[]): number {
+  const sevenDaysAgo = Date.now() - 7 * 24 * 3600 * 1000;
+  return decisions.filter((d) => {
+    const ts = new Date(typeof d.recordedAt === "number" ? d.recordedAt * 1000 : d.recordedAt).getTime();
+    return ts >= sevenDaysAgo;
+  }).length;
+}
+
 export default function DecisionsPage() {
   const t = useT();
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
 
   const [title, setTitle] = useState("");
   const [rationale, setRationale] = useState("");
@@ -78,6 +86,7 @@ export default function DecisionsPage() {
       setRationale("");
       setAlternatives("");
       setContext("");
+      setShowForm(false);
       await loadDecisions();
     } catch {
       setError(t("decisions.error.record"));
@@ -88,121 +97,167 @@ export default function DecisionsPage() {
 
   function formatDate(val: string | number) {
     const d = new Date(typeof val === "number" ? val * 1000 : val);
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    return d
+      .toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+      .toUpperCase();
   }
 
-  return (
-    <div className="flex flex-col h-full overflow-y-auto">
-    <div className="border-b border-border px-6 py-4">
-      <h1 className="text-lg font-semibold">{t("decisions.title")}</h1>
-      <p className="text-sm text-muted-foreground">{t("decisions.description")}</p>
-    </div>
-    <div className="p-6 max-w-3xl mx-auto w-full space-y-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("decisions.recordCard")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <label htmlFor="title" className="text-sm font-medium">{t("decisions.labelTitle")}</label>
-              <Input
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={t("decisions.titlePlaceholder")}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="rationale" className="text-sm font-medium">{t("decisions.labelRationale")}</label>
-              <Textarea
-                id="rationale"
-                value={rationale}
-                onChange={(e) => setRationale(e.target.value)}
-                placeholder={t("decisions.rationalePlaceholder")}
-                rows={3}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="alternatives" className="text-sm font-medium">{t("decisions.labelAlternatives")}</label>
-              <Textarea
-                id="alternatives"
-                value={alternatives}
-                onChange={(e) => setAlternatives(e.target.value)}
-                placeholder={t("decisions.alternativesPlaceholder")}
-                rows={3}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="context" className="text-sm font-medium">{t("decisions.labelContext")}</label>
-              <Textarea
-                id="context"
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
-                placeholder={t("decisions.contextPlaceholder")}
-                rows={3}
-              />
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" disabled={submitting || !title.trim()}>
-              {submitting ? t("decisions.recording") : t("decisions.record")}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+  // Decisions are stored newest-first; reverse for display so the oldest is #1.
+  const numbered = decisions
+    .slice()
+    .reverse()
+    .map((d, i) => ({ ...d, num: i + 1 }))
+    .reverse();
 
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">{t("decisions.log")}</h2>
-        {loading ? (
-          <p className="text-sm text-muted-foreground">{t("decisions.loading")}</p>
-        ) : decisions.length === 0 ? (
-          <div className="rounded-lg border border-border bg-card py-10 text-center">
-            <p className="text-sm font-medium text-muted-foreground">{t("decisions.empty")}</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">{t("decisions.emptyHint")}</p>
+  const thisWeek = countThisWeek(decisions);
+
+  return (
+    <div className="pit-page">
+      <SectionHead
+        kicker="STATIONS / DECISIONS"
+        title="DECISION LOG"
+        right={
+          <>
+            <Telemetry
+              items={[
+                { label: "TOTAL", value: decisions.length },
+                { label: "THIS WEEK", value: thisWeek },
+              ]}
+            />
+            <button
+              type="button"
+              onClick={() => setShowForm((v) => !v)}
+              className="pit-btn pit-btn-primary"
+            >
+              <Plus size={12} /> {showForm ? "Close" : "Record decision"}
+            </button>
+          </>
+        }
+      />
+      <div className="pit-page-scroll pit-scroll">
+        <div className="pit-page-body">
+          {showForm && (
+            <form onSubmit={handleSubmit} className="pit-card" style={{ padding: 18, marginBottom: 18 }}>
+              <div className="pit-eyebrow" style={{ marginBottom: 10 }}>{t("decisions.recordCard")}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div>
+                  <label className="pit-eyebrow" htmlFor="title">{t("decisions.labelTitle")}</label>
+                  <input
+                    id="title"
+                    className="pit-input"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder={t("decisions.titlePlaceholder")}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="pit-eyebrow" htmlFor="rationale">{t("decisions.labelRationale")}</label>
+                  <textarea
+                    id="rationale"
+                    className="pit-input"
+                    value={rationale}
+                    onChange={(e) => setRationale(e.target.value)}
+                    placeholder={t("decisions.rationalePlaceholder")}
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="pit-eyebrow" htmlFor="alternatives">{t("decisions.labelAlternatives")}</label>
+                  <textarea
+                    id="alternatives"
+                    className="pit-input"
+                    value={alternatives}
+                    onChange={(e) => setAlternatives(e.target.value)}
+                    placeholder={t("decisions.alternativesPlaceholder")}
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="pit-eyebrow" htmlFor="context">{t("decisions.labelContext")}</label>
+                  <textarea
+                    id="context"
+                    className="pit-input"
+                    value={context}
+                    onChange={(e) => setContext(e.target.value)}
+                    placeholder={t("decisions.contextPlaceholder")}
+                    rows={3}
+                  />
+                </div>
+                {error && <p style={{ color: "var(--pit-red)", fontSize: 12 }}>{error}</p>}
+                <button
+                  type="submit"
+                  className="pit-btn pit-btn-primary"
+                  disabled={submitting || !title.trim()}
+                  style={{ alignSelf: "flex-start" }}
+                >
+                  {submitting ? t("decisions.recording") : t("decisions.record")}
+                </button>
+              </div>
+            </form>
+          )}
+
+          <div className="pit-eyebrow" style={{ marginBottom: 10 }}>
+            DECISIONS THIS BUILD SEASON
           </div>
-        ) : (
-          decisions.map((d) => (
-            <Card key={d.id}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base leading-snug">{d.decision}</CardTitle>
-                <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs text-muted-foreground">{formatDate(d.recordedAt)}</p>
+
+          {loading ? (
+            <p className="pit-eyebrow">{t("decisions.loading")}</p>
+          ) : decisions.length === 0 ? (
+            <div className="pit-card" style={{ padding: 32, textAlign: "center" }}>
+              <p className="pit-display" style={{ fontSize: 14 }}>{t("decisions.empty")}</p>
+              <p style={{ fontSize: 12, color: "var(--pit-text-3)", marginTop: 6 }}>
+                {t("decisions.emptyHint")}
+              </p>
+            </div>
+          ) : (
+            numbered.map((d) => (
+              <div key={d.id} className="pit-decision-card">
+                <div className="pit-decision-head">
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                    <span className="pit-decision-num pit-tnum">#{d.num}</span>
+                    <div>
+                      <div className="pit-eyebrow pit-mono" style={{ fontSize: 10 }}>
+                        RECORDED · {formatDate(d.recordedAt)}
+                      </div>
+                      <div className="pit-decision-title">{d.decision}</div>
+                    </div>
+                  </div>
                   {d.sourceMessageId && d.sourceChannelId && (
                     <Link
                       href={`/app/channels/${d.sourceChannelId}#msg-${d.sourceMessageId}`}
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      className="pit-cite-chip pit-mono"
+                      style={{ flexShrink: 0 }}
                     >
-                      Open source <ArrowUpRight size={12} />
+                      <ArrowUpRight size={10} /> source
                     </Link>
                   )}
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                {d.rationale && (
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">{t("decisions.sectionRationale")}</p>
-                    <p className="text-foreground/90 leading-relaxed">{d.rationale}</p>
-                  </div>
-                )}
-                {d.alternativesConsidered && (
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">{t("decisions.sectionAlternatives")}</p>
-                    <p className="italic text-muted-foreground leading-relaxed">{d.alternativesConsidered}</p>
-                  </div>
-                )}
-                {d.contextAtTime && (
-                  <div>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">{t("decisions.sectionContext")}</p>
-                    <p className="text-foreground/80 leading-relaxed">{d.contextAtTime}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))
-        )}
+                <div className="pit-decision-grid">
+                  {d.rationale && (
+                    <>
+                      <div className="lbl">RATIONALE</div>
+                      <div className="val">{d.rationale}</div>
+                    </>
+                  )}
+                  {d.alternativesConsidered && (
+                    <>
+                      <div className="lbl">ALTERNATIVES</div>
+                      <div className="val"><em>{d.alternativesConsidered}</em></div>
+                    </>
+                  )}
+                  {d.contextAtTime && (
+                    <>
+                      <div className="lbl">CONTEXT</div>
+                      <div className="val">{d.contextAtTime}</div>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
-    </div>
     </div>
   );
 }

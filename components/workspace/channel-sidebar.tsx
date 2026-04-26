@@ -6,14 +6,15 @@ import {
   BookMarked,
   FileText,
   Gavel,
-  Hash,
   KanbanSquare,
   LogOut,
+  Plus,
   Search,
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n/client";
+import { LiveDot } from "./broadcast-atoms";
 
 type LastMessage = {
   id: string;
@@ -52,14 +53,6 @@ type ChannelDelta = {
   archived?: true;
 };
 
-const navLink = (href: string, pathname: string) =>
-  cn(
-    "flex items-center gap-2 mx-2 px-2 py-1.5 rounded text-sm",
-    pathname === href
-      ? "bg-primary/20 text-primary font-medium"
-      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-  );
-
 function relativeTime(iso: string): string {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return "";
@@ -74,24 +67,37 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
+// Hash glyph — broadcast feel, sharp lines.
+function HashGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <path
+        d="M5 1v14M11 1v14M1 5h14M1 11h14"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        fill="none"
+        strokeLinecap="square"
+      />
+    </svg>
+  );
+}
+
 export default function ChannelSidebar({ team, channels, currentUserId }: Props) {
   const t = useT();
   const router = useRouter();
   const pathname = usePathname();
 
-  // Client-side deltas applied on top of server-rendered props. We reset them
-  // in the render phase whenever the props' channelsKey changes (the React
-  // pattern for "store information from previous renders").
   const [deltas, setDeltas] = useState<Map<string, ChannelDelta>>(new Map());
-  const [teamOverride, setTeamOverride] = useState<Partial<SidebarTeam>>({});
+  const [, setTeamOverride] = useState<Partial<SidebarTeam>>({});
   const [lastChannelsKey, setLastChannelsKey] = useState<string>("");
+  // Channels with a recent message — used to flash the live dot for ~6s.
+  const [liveChannels, setLiveChannels] = useState<Map<string, number>>(new Map());
 
   const currentChannelId = useMemo(() => {
     const m = pathname.match(/^\/app\/channels\/([^/]+)/);
     return m?.[1] ?? null;
   }, [pathname]);
 
-  // Subscribe to the team-wide SSE stream for cross-channel awareness.
   useEffect(() => {
     if (!team.id) return;
     const es = new EventSource(`/api/teams/${team.id}/sse`);
@@ -129,9 +135,14 @@ export default function ChannelSidebar({ team, channels, currentUserId }: Props)
               createdAt: createdAtIso,
             },
             unreadDelta: (existing.unreadDelta ?? 0) + (isMine || isCurrent ? 0 : 1),
-            // If user is currently viewing this channel, force the count to 0.
             unreadOverride: isCurrent ? 0 : existing.unreadOverride,
           });
+          return next;
+        });
+        // Light up the live dot.
+        setLiveChannels((prev) => {
+          const next = new Map(prev);
+          next.set(msg.channelId, Date.now());
           return next;
         });
       } else if (type === "channels_updated") {
@@ -170,17 +181,32 @@ export default function ChannelSidebar({ team, channels, currentUserId }: Props)
     return () => es.close();
   }, [team.id, currentChannelId, currentUserId, router]);
 
-  // Reset deltas + teamOverride whenever the channels prop reference changes
-  // (i.e. after router.refresh()). Doing this in the render phase avoids the
-  // "setState synchronously within an effect" cascading-render anti-pattern.
+  // Decay live indicators after 6s.
+  useEffect(() => {
+    if (liveChannels.size === 0) return;
+    const tm = setTimeout(() => {
+      const cutoff = Date.now() - 6000;
+      setLiveChannels((prev) => {
+        let changed = false;
+        const next = new Map(prev);
+        for (const [id, t] of prev) {
+          if (t < cutoff) {
+            next.delete(id);
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 6500);
+    return () => clearTimeout(tm);
+  }, [liveChannels]);
+
   const channelsKey = useMemo(() => channels.map((c) => c.id).join(","), [channels]);
   if (channelsKey !== lastChannelsKey) {
     setLastChannelsKey(channelsKey);
     setDeltas(new Map());
     setTeamOverride({});
   }
-
-  const renderTeam: SidebarTeam = { ...team, ...teamOverride };
 
   const renderChannels = channels
     .map((ch) => {
@@ -202,91 +228,86 @@ export default function ChannelSidebar({ team, channels, currentUserId }: Props)
     })
     .filter((ch) => !ch.archived);
 
+  const NAV: Array<{ href: string; icon: React.ReactNode; label: string }> = [
+    { href: "/app/ask",            icon: <Search size={14} />,        label: t("sidebar.askPitOS") },
+    { href: "/app/tasks",          icon: <KanbanSquare size={14} />,  label: "Tasks" },
+    { href: "/app/judge-sim",      icon: <Gavel size={14} />,         label: t("sidebar.judgeSim") },
+    { href: "/app/decisions",      icon: <BookMarked size={14} />,    label: t("sidebar.decisions") },
+    { href: "/app/exit-interview", icon: <LogOut size={14} />,        label: t("sidebar.exitInterview") },
+    { href: "/app/season-recap",   icon: <FileText size={14} />,      label: t("sidebar.seasonRecap") },
+    { href: "/app/settings",       icon: <Settings size={14} />,      label: t("sidebar.settings") },
+  ];
+
   return (
-    <aside className="w-60 bg-card border-r border-border flex flex-col shrink-0">
-      <div className="px-4 py-3 border-b border-border">
-        <h2 className="font-semibold text-sm truncate">{renderTeam.name}</h2>
-        {renderTeam.number && (
-          <p className="text-xs text-muted-foreground">
-            {t("sidebar.team", { number: String(renderTeam.number) })}
-          </p>
-        )}
+    <aside className="pit-sidebar pit-scroll">
+      <div className="pit-side-header">
+        <div className="pit-eyebrow">CHANNEL</div>
+        <div className="pit-side-channels-head">
+          <span className="pit-display" style={{ fontSize: 12 }}>BROADCAST</span>
+          <button className="pit-side-add" aria-label="New channel" type="button">
+            <Plus size={12} />
+          </button>
+        </div>
       </div>
-      <div className="flex-1 overflow-y-auto py-2">
-        <p className="px-4 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          {t("sidebar.channels")}
-        </p>
+
+      <div className="pit-side-channels pit-scroll">
         {renderChannels.map((ch) => {
           const href = `/app/channels/${ch.id}`;
           const isActive = pathname === href;
           const unread = ch.unreadCount ?? 0;
           const last = ch.lastMessage;
+          const isLive = liveChannels.has(ch.id);
           return (
             <Link
               key={ch.id}
               href={href}
               className={cn(
-                "block mx-2 px-2 py-1.5 rounded text-sm",
-                isActive
-                  ? "bg-primary/20 text-primary font-medium"
-                  : unread > 0
-                  ? "text-foreground hover:bg-muted"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                "pit-side-ch",
+                isActive && "is-active",
+                unread > 0 && "has-unread",
               )}
             >
-              <div className="flex items-center gap-2">
-                <Hash size={14} className="shrink-0" />
-                <span className={cn("truncate flex-1", unread > 0 && !isActive && "font-semibold")}>
-                  {ch.name}
+              <span className="pit-side-ch-bullet">
+                {isLive ? <LiveDot /> : <HashGlyph />}
+              </span>
+              <span className="pit-side-ch-name">{ch.name}</span>
+              {unread > 0 && !isActive && (
+                <span className="pit-side-ch-unread">
+                  {unread > 99 ? "99+" : unread}
                 </span>
-                {unread > 0 && !isActive && (
-                  <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary/30 text-primary text-[10px] font-medium">
-                    {unread > 99 ? "99+" : unread}
-                  </span>
-                )}
-              </div>
-              {last && (
-                <p className="mt-0.5 ml-6 text-[11px] text-muted-foreground/80 truncate">
-                  <span className="font-medium">{last.senderName ?? "?"}:</span>{" "}
-                  {last.contentPreview}
-                  <span className="ml-1 opacity-60">· {relativeTime(last.createdAt)}</span>
-                </p>
+              )}
+              {last && !unread && (
+                <span className="pit-side-ch-preview" aria-hidden="true">
+                  {last.senderName ?? "?"}: {last.contentPreview}
+                  <span style={{ opacity: 0.6 }}> · {relativeTime(last.createdAt)}</span>
+                </span>
               )}
             </Link>
           );
         })}
       </div>
-      <div className="py-2 border-t border-border">
-        <Link href="/app/ask" className={navLink("/app/ask", pathname)}>
-          <Search size={14} />{t("sidebar.askPitOS")}
-        </Link>
-        <Link href="/app/tasks" className={navLink("/app/tasks", pathname)}>
-          <KanbanSquare size={14} />Tasks
-        </Link>
-        <Link href="/app/judge-sim" className={navLink("/app/judge-sim", pathname)}>
-          <Gavel size={14} />{t("sidebar.judgeSim")}
-        </Link>
-        <Link href="/app/decisions" className={navLink("/app/decisions", pathname)}>
-          <BookMarked size={14} />{t("sidebar.decisions")}
-        </Link>
-        <Link href="/app/exit-interview" className={navLink("/app/exit-interview", pathname)}>
-          <LogOut size={14} />{t("sidebar.exitInterview")}
-        </Link>
-        <Link href="/app/season-recap" className={navLink("/app/season-recap", pathname)}>
-          <FileText size={14} />{t("sidebar.seasonRecap")}
-        </Link>
-        <Link href="/app/settings" className={navLink("/app/settings", pathname)}>
-          <Settings size={14} />{t("sidebar.settings")}
-        </Link>
+
+      <div className="pit-side-nav">
+        <div className="pit-eyebrow" style={{ padding: "10px 14px 4px" }}>
+          STATIONS
+        </div>
+        {NAV.map((n) => {
+          const isActive = pathname === n.href || pathname.startsWith(n.href + "/");
+          return (
+            <Link
+              key={n.href}
+              href={n.href}
+              className={cn("pit-side-nav-item", isActive && "is-active")}
+            >
+              {n.icon}
+              <span>{n.label}</span>
+            </Link>
+          );
+        })}
         <form action="/api/auth/logout" method="POST">
-          <button
-            type="submit"
-            className={cn(
-              "flex w-full items-center gap-2 mx-2 px-2 py-1.5 rounded text-sm",
-              "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            <LogOut size={14} />Sign out
+          <button type="submit" className="pit-side-nav-item">
+            <LogOut size={14} />
+            <span>Sign out</span>
           </button>
         </form>
       </div>

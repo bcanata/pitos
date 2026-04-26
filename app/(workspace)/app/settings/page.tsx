@@ -7,7 +7,9 @@ import { getTeamBundle } from "@/lib/i18n/server";
 import { t } from "@/lib/i18n/index";
 import InviteForm from "@/components/workspace/invite-form";
 import LanguageSettings from "@/components/workspace/language-settings";
+import PendingMembers from "@/components/workspace/pending-members";
 import TeamInfoForm from "@/components/workspace/team-info-form";
+import { Avatar, SectionHead } from "@/components/workspace/broadcast-atoms";
 
 export default async function SettingsPage() {
   const { user } = await getSession();
@@ -35,6 +37,7 @@ export default async function SettingsPage() {
       role: memberships.role,
       subteam: memberships.subteam,
       joinedAt: memberships.joinedAt,
+      status: memberships.status,
       userId: users.id,
       email: users.email,
       name: users.name,
@@ -44,11 +47,26 @@ export default async function SettingsPage() {
     .where(eq(memberships.teamId, membership.teamId))
     .all();
 
-  const pendingInvites = await db
-    .select()
-    .from(invites)
-    .where(and(eq(invites.teamId, membership.teamId), isNull(invites.acceptedAt)))
-    .all();
+  const activeMemberships = teamMemberships.filter((m) => m.status === "active");
+  const pendingMemberships = teamMemberships.filter((m) => m.status === "pending");
+
+  const canInvite = membership.role === "lead_mentor" || membership.role === "captain";
+  const canApprove = canInvite;
+
+  const serializedPending = pendingMemberships.map((m) => ({
+    membershipId: m.membershipId,
+    email: m.email,
+    name: m.name,
+    joinedAt: m.joinedAt.getTime(),
+  }));
+
+  const pendingInvites = canInvite
+    ? await db
+        .select()
+        .from(invites)
+        .where(and(eq(invites.teamId, membership.teamId), isNull(invites.acceptedAt)))
+        .all()
+    : [];
 
   const serializedInvites = pendingInvites.map((inv) => ({
     id: inv.id,
@@ -57,60 +75,97 @@ export default async function SettingsPage() {
   }));
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      <div className="max-w-2xl w-full mx-auto p-6 space-y-8">
-        <h1 className="text-xl font-semibold">{t(bundle, "settings.title")}</h1>
+    <div className="pit-page">
+      <SectionHead kicker="STATIONS / SETTINGS" title={t(bundle, "settings.title").toUpperCase()} />
+      <div className="pit-page-scroll pit-scroll">
+        <div className="pit-page-body" style={{ maxWidth: 720 }}>
+          <div className="pit-eyebrow">TEAM</div>
+          <div style={{ marginTop: 8, marginBottom: 24 }}>
+            <TeamInfoForm team={{ name: team?.name ?? "", number: team?.number ?? null }} />
+          </div>
 
-      <section className="space-y-3">
-        <h2 className="text-base font-medium border-b border-border pb-2">Team info</h2>
-        <TeamInfoForm team={{ name: team?.name ?? "", number: team?.number ?? null }} />
-      </section>
+          {canApprove && (
+            <>
+              <div className="pit-eyebrow" style={{ marginTop: 24 }}>PENDING REQUESTS</div>
+              <div style={{ marginTop: 8, marginBottom: 24 }}>
+                <PendingMembers initialPending={serializedPending} />
+              </div>
+            </>
+          )}
 
-      <section className="space-y-3">
-        <h2 className="text-base font-medium border-b border-border pb-2">
-          {t(bundle, "settings.teamMembers")}
-        </h2>
-        {teamMemberships.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t(bundle, "settings.noMembers")}</p>
-        ) : (
-          <ul className="space-y-2">
-            {teamMemberships.map((m) => (
-              <li
-                key={m.membershipId}
-                className="flex items-center justify-between rounded border border-border px-3 py-2 text-sm"
-              >
-                <div>
-                  <span className="font-medium">{m.name ?? m.email ?? "Unknown"}</span>
-                  {m.name && m.email && (
-                    <span className="ml-2 text-muted-foreground text-xs">{m.email}</span>
-                  )}
+          <div className="pit-eyebrow" style={{ marginTop: 24 }}>
+            {t(bundle, "settings.teamMembers").toUpperCase()}
+          </div>
+          {activeMemberships.length === 0 ? (
+            <p style={{ color: "var(--pit-text-3)", fontSize: 13, marginTop: 8 }}>
+              {t(bundle, "settings.noMembers")}
+            </p>
+          ) : (
+            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+              {activeMemberships.map((m) => (
+                <div
+                  key={m.membershipId}
+                  className="pit-card"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "10px 12px",
+                    fontSize: 13,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <Avatar name={m.name ?? m.email ?? "?"} />
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{m.name ?? m.email ?? "Unknown"}</div>
+                      {m.name && m.email && (
+                        <div style={{ color: "var(--pit-text-3)", fontSize: 11 }}>{m.email}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {m.subteam && (
+                      <span className="pit-chip">
+                        <span
+                          className={`pit-subteam-dot pit-subteam-${
+                            m.subteam === "programming"
+                              ? "prog"
+                              : m.subteam === "outreach"
+                              ? "out"
+                              : m.subteam === "business"
+                              ? "biz"
+                              : "build"
+                          }`}
+                        />
+                        {m.subteam}
+                      </span>
+                    )}
+                    <span className="pit-chip">{m.role.replace("_", " ")}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {m.subteam && <span className="capitalize">{m.subteam}</span>}
-                  <span className="capitalize">{m.role.replace("_", " ")}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              ))}
+            </div>
+          )}
 
-      <section className="space-y-3">
-        <h2 className="text-base font-medium border-b border-border pb-2">
-          {t(bundle, "settings.inviteMember")}
-        </h2>
-        <InviteForm initialPending={serializedInvites} />
-      </section>
+          {canInvite && (
+            <>
+              <div className="pit-eyebrow" style={{ marginTop: 28 }}>
+                {t(bundle, "settings.inviteMember").toUpperCase()}
+              </div>
+              <div style={{ marginTop: 8, marginBottom: 24 }}>
+                <InviteForm initialPending={serializedInvites} />
+              </div>
+            </>
+          )}
 
-      <section className="space-y-3">
-        <h2 className="text-base font-medium border-b border-border pb-2">
-          {t(bundle, "settings.language")}
-        </h2>
-        <LanguageSettings
-          currentLang={user.language ?? "en"}
-        />
-      </section>
-    </div>
+          <div className="pit-eyebrow" style={{ marginTop: 28 }}>
+            {t(bundle, "settings.language").toUpperCase()}
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <LanguageSettings currentLang={user.language ?? "en"} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

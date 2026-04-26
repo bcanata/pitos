@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { FileText, RefreshCw } from "lucide-react";
 import { useT } from "@/lib/i18n/client";
+import { SectionHead } from "@/components/workspace/broadcast-atoms";
 
 interface GeneratedDocument {
   id: string;
@@ -16,7 +16,7 @@ function RecapContent({ content }: { content: string }) {
   const paragraphs = content.split(/\n\n+/);
 
   return (
-    <div className="space-y-4 text-sm leading-relaxed">
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, fontSize: 13, lineHeight: 1.65 }}>
       {paragraphs.map((para, i) => {
         const trimmed = para.trim();
         if (!trimmed) return null;
@@ -25,14 +25,23 @@ function RecapContent({ content }: { content: string }) {
 
         if (isSection) {
           return (
-            <h3 key={i} className="text-base font-semibold text-foreground mt-6 first:mt-0">
+            <h3
+              key={i}
+              className="pit-display"
+              style={{
+                fontSize: 16,
+                marginTop: 12,
+                color: "var(--pit-text)",
+                letterSpacing: "0.02em",
+              }}
+            >
               {trimmed}
             </h3>
           );
         }
 
         return (
-          <p key={i} className="text-foreground/90 whitespace-pre-wrap">
+          <p key={i} style={{ color: "var(--pit-text-2)", whiteSpace: "pre-wrap" }}>
             {trimmed}
           </p>
         );
@@ -105,57 +114,93 @@ export default function SeasonRecapPage() {
 
   function formatDate(val: string | number) {
     const d = new Date(typeof val === "number" ? val * 1000 : val);
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+    return d
+      .toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })
+      .toUpperCase();
   }
 
   if (loading) {
     return (
-      <div className="p-6">
-        <p className="text-sm text-muted-foreground">{t("seasonRecap.loading")}</p>
+      <div className="pit-page">
+        <SectionHead kicker="STATIONS / SEASON RECAP" title="SEASON RECAP" />
+        <div className="pit-page-body">
+          <p className="pit-eyebrow">{t("seasonRecap.loading")}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{t("seasonRecap.title")}</h1>
-        <Button onClick={handleGenerate} disabled={generating}>
-          {generating ? t("seasonRecap.generating") : t("seasonRecap.generate")}
-        </Button>
-      </div>
-
-      {generating && (
-        <Card>
-          <CardContent className="py-8 text-center space-y-3">
-            <div className="flex justify-center">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    <div className="pit-page">
+      <SectionHead
+        kicker="STATIONS / SEASON RECAP"
+        title="SEASON RECAP"
+        right={
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="pit-btn pit-btn-primary"
+          >
+            {generating ? (
+              <>
+                <RefreshCw size={12} className="animate-spin" />
+                {t("seasonRecap.generating")}
+              </>
+            ) : (
+              <>
+                <RefreshCw size={12} />
+                {t("seasonRecap.generate")}
+              </>
+            )}
+          </button>
+        }
+      />
+      <div className="pit-page-scroll pit-scroll">
+        <div className="pit-page-body">
+          {generating && (
+            <div className="pit-recap-hero" style={{ marginBottom: 18 }}>
+              <div className="pit-eyebrow">PROCESSING</div>
+              <h2 className="pit-display" style={{ marginTop: 6 }}>GENERATING RECAP</h2>
+              <p style={{ fontSize: 12, color: "var(--pit-text-2)", marginTop: 12 }}>
+                <span className="pit-thinking" style={{ marginRight: 8 }}>
+                  <i /><i /><i />
+                </span>
+                {t("seasonRecap.generatingHint")}
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground">{t("seasonRecap.generatingHint")}</p>
-          </CardContent>
-        </Card>
-      )}
+          )}
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && (
+            <p style={{ color: "var(--pit-red)", fontSize: 12, marginBottom: 12 }}>{error}</p>
+          )}
 
-      {document ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>{document.title}</CardTitle>
-            <p className="text-xs text-muted-foreground">{formatDate(document.createdAt)}</p>
-          </CardHeader>
-          <CardContent>
-            <RecapContent content={document.contentMd} />
-          </CardContent>
-        </Card>
-      ) : !generating ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-sm font-medium text-muted-foreground">{t("seasonRecap.empty")}</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">{t("seasonRecap.emptyHint")}</p>
-          </CardContent>
-        </Card>
-      ) : null}
+          {document ? (
+            <>
+              <div className="pit-recap-hero">
+                <div className="pit-eyebrow" style={{ color: "var(--pit-text-2)" }}>
+                  {formatDate(document.createdAt)}
+                </div>
+                <h2 className="pit-display">{document.title}</h2>
+              </div>
+
+              <div className="pit-card" style={{ padding: 22, marginTop: 18 }}>
+                <div className="pit-eyebrow" style={{ marginBottom: 14 }}>PITOS · SUMMARY</div>
+                <RecapContent content={document.contentMd} />
+              </div>
+            </>
+          ) : !generating ? (
+            <div className="pit-card" style={{ padding: 36, textAlign: "center" }}>
+              <FileText size={36} style={{ margin: "0 auto", opacity: 0.3 }} />
+              <p className="pit-display" style={{ fontSize: 14, marginTop: 12 }}>
+                {t("seasonRecap.empty")}
+              </p>
+              <p style={{ fontSize: 12, color: "var(--pit-text-3)", marginTop: 6 }}>
+                {t("seasonRecap.emptyHint")}
+              </p>
+            </div>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

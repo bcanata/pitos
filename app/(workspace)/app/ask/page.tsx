@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search } from "lucide-react";
 import Link from "next/link";
+import { Search, Send } from "lucide-react";
 import { useT } from "@/lib/i18n/client";
+import { SectionHead } from "@/components/workspace/broadcast-atoms";
 
 interface Citation {
   messageId: string;
@@ -26,6 +24,8 @@ export default function AskPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AskResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Track elapsed time so we can show the broadcast latency line on results.
+  const [elapsedMs, setElapsedMs] = useState<number | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,7 +35,9 @@ export default function AskPage() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setElapsedMs(null);
 
+    const start = performance.now();
     try {
       const res = await fetch("/api/ask", {
         method: "POST",
@@ -51,6 +53,7 @@ export default function AskPage() {
 
       const data: AskResult = await res.json();
       setResult(data);
+      setElapsedMs(performance.now() - start);
     } catch {
       setError(t("ask.error.network"));
     } finally {
@@ -58,87 +61,125 @@ export default function AskPage() {
     }
   }
 
+  const suggestions = [
+    "What did we decide about bumpers?",
+    "Who has run the elevator weight calc?",
+    "Which tasks are blocked on parts?",
+    "Show the 2025 swerve drift fix",
+  ];
+
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      <div className="border-b border-border px-6 py-4">
-        <h1 className="text-lg font-semibold">{t("ask.title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("ask.description")}</p>
-      </div>
+    <div className="pit-page">
+      <SectionHead
+        kicker="STATIONS / ASK"
+        title="ASK PITOS"
+        right={<span className="pit-eyebrow">SEMANTIC SEARCH</span>}
+      />
+      <div className="pit-page-scroll pit-scroll">
+        <div className="pit-page-body">
+          <form onSubmit={handleSubmit} className="pit-ask-hero">
+            <div className="pit-eyebrow" style={{ marginBottom: 10 }}>QUESTION</div>
+            <div className="pit-ask-input-wrap">
+              <input
+                className="pit-ask-input"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("ask.placeholder")}
+                disabled={loading}
+                autoFocus
+              />
+              <button
+                type="submit"
+                className="pit-ask-go"
+                aria-label={t("ask.button")}
+                disabled={loading || !query.trim()}
+              >
+                {loading ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                ) : (
+                  <Send size={16} />
+                )}
+              </button>
+            </div>
+            <div className="pit-ask-suggest">
+              <span className="pit-eyebrow" style={{ marginRight: 4 }}>TRY</span>
+              {suggestions.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className="pit-chip"
+                  onClick={() => setQuery(s)}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </form>
 
-      <div className="flex-1 px-6 py-6 max-w-3xl mx-auto w-full">
-        <form onSubmit={handleSubmit} className="flex gap-2 mb-8">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("ask.placeholder")}
-            className="flex-1"
-            disabled={loading}
-          />
-          <Button type="submit" disabled={loading || !query.trim()}>
-            {loading ? (
-              <span className="flex items-center gap-2">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                {t("ask.searching")}
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <Search size={16} />
-                {t("ask.button")}
-              </span>
-            )}
-          </Button>
-        </form>
+          {error && (
+            <div
+              className="pit-card"
+              style={{
+                marginTop: 16,
+                padding: 16,
+                borderColor: "var(--pit-red)",
+                background: "var(--pit-red-soft)",
+                color: "var(--pit-red)",
+                fontSize: 13,
+              }}
+            >
+              {error}
+            </div>
+          )}
 
-        {error && (
-          <Card className="border-destructive/50 bg-destructive/10 mb-6">
-            <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
-          </Card>
-        )}
-
-        {result && (
-          <div className="space-y-6">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{t("ask.answer")}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{result.answer}</p>
-              </CardContent>
-            </Card>
-
-            {result.citations.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-                  {t("ask.sources", { count: String(result.citations.length) })}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {result.citations.map((citation) => (
-                    <Link
-                      key={citation.messageId}
-                      href={`/app/channels/${citation.channelId}#msg-${citation.messageId}`}
-                    >
-                      <div className="inline-flex flex-col gap-0.5 px-3 py-2 rounded-lg border border-border bg-card hover:bg-muted transition-colors cursor-pointer max-w-xs">
-                        <span className="text-xs font-medium text-primary">
-                          #{citation.channelName}
-                        </span>
-                        <span className="text-xs text-muted-foreground line-clamp-2">
-                          {citation.preview}
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
+          {result && (
+            <div className="pit-ask-answer">
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                <span
+                  className="pit-display"
+                  style={{
+                    color: "var(--pit-red)",
+                    fontSize: 12,
+                    letterSpacing: "0.18em",
+                  }}
+                >
+                  PITOS · ANSWER
+                </span>
+                <span className="pit-eyebrow pit-mono">
+                  {elapsedMs !== null && `${(elapsedMs / 1000).toFixed(1)}s · `}
+                  {result.citations.length} SOURCE{result.citations.length === 1 ? "" : "S"}
+                </span>
               </div>
-            )}
-          </div>
-        )}
+              <p style={{ fontSize: 14, lineHeight: 1.65, color: "var(--pit-text)", whiteSpace: "pre-wrap" }}>
+                {result.answer}
+              </p>
+              {result.citations.length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <div className="pit-eyebrow" style={{ marginBottom: 8 }}>SOURCES</div>
+                  <div className="pit-ask-sources">
+                    {result.citations.map((c) => (
+                      <Link
+                        key={c.messageId}
+                        href={`/app/channels/${c.channelId}#msg-${c.messageId}`}
+                        className="pit-source-card"
+                      >
+                        <div className="src-ch"># {c.channelName}</div>
+                        <div style={{ marginTop: 4 }}>{c.preview}</div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
-        {!result && !loading && !error && (
-          <div className="text-center py-16 text-muted-foreground">
-            <Search size={48} className="mx-auto mb-4 opacity-20" />
-            <p className="text-sm">{t("ask.empty")}</p>
-          </div>
-        )}
+          {!result && !loading && !error && (
+            <div style={{ textAlign: "center", padding: "48px 16px", color: "var(--pit-text-3)" }}>
+              <Search size={40} style={{ margin: "0 auto 12px", opacity: 0.2 }} />
+              <p className="pit-eyebrow">{t("ask.empty")}</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

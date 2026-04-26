@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, AlertCircle, Lightbulb, Gavel, RotateCcw } from "lucide-react";
+import { RotateCcw, Send } from "lucide-react";
 import { useT } from "@/lib/i18n/client";
+import { LiveDot, SectionHead } from "@/components/workspace/broadcast-atoms";
 
 type Message = { role: "judge" | "team"; content: string };
 
@@ -18,14 +16,21 @@ type GapReport = {
   raw?: string;
 };
 
-const AWARDS = [
-  "FIRST Impact Award",
-  "Engineering Inspiration",
-  "Rookie All Star",
-  "Safety Award",
-  "Industrial Design Award",
-  "Quality Award",
-  "Judges Award",
+interface AwardDef {
+  id: string;
+  name: string;
+  letter: string;
+  blurb: string;
+}
+
+const AWARDS: AwardDef[] = [
+  { id: "impact",      name: "FIRST Impact Award",       letter: "I",  blurb: "Deepest impact on FIRST's mission, sustained over years." },
+  { id: "ei",          name: "Engineering Inspiration",  letter: "E",  blurb: "Outstanding success advancing engineering in the school + community." },
+  { id: "rookie",      name: "Rookie All Star",          letter: "R",  blurb: "Rookie team that embodies the FIRST mission." },
+  { id: "safety",      name: "Safety Award",             letter: "S",  blurb: "Team that prioritizes safety in design, build, and pit." },
+  { id: "industrial",  name: "Industrial Design Award",  letter: "ID", blurb: "Industrial design integrating form and function." },
+  { id: "quality",     name: "Quality Award",            letter: "Q",  blurb: "Robustness in concept and fabrication." },
+  { id: "judges",      name: "Judges Award",             letter: "J",  blurb: "Team the judges feel deserves recognition." },
 ];
 
 type Step = "select" | "interview" | "report";
@@ -82,10 +87,7 @@ export default function JudgeSimPage() {
     const text = response.trim();
     if (!text || loading) return;
 
-    const newMessages: Message[] = [
-      ...messages,
-      { role: "team", content: text },
-    ];
+    const newMessages: Message[] = [...messages, { role: "team", content: text }];
     setMessages(newMessages);
     setResponse("");
     setLoading(true);
@@ -104,19 +106,12 @@ export default function JudgeSimPage() {
         return;
       }
 
-      const data: {
-        judgeReply: string;
-        isComplete: boolean;
-        gapReport?: GapReport;
-      } = await res.json();
+      const data: { judgeReply: string; isComplete: boolean; gapReport?: GapReport } = await res.json();
 
       const nextTurn = turnCount + 1;
       setTurnCount(nextTurn);
 
-      setMessages([
-        ...newMessages,
-        { role: "judge", content: data.judgeReply },
-      ]);
+      setMessages([...newMessages, { role: "judge", content: data.judgeReply }]);
 
       if (data.isComplete && data.gapReport) {
         setGapReport(data.gapReport);
@@ -142,45 +137,56 @@ export default function JudgeSimPage() {
 
   if (step === "select") {
     return (
-      <div className="flex flex-col h-full overflow-y-auto">
-        <div className="border-b border-border px-6 py-4">
-          <h1 className="text-lg font-semibold flex items-center gap-2">
-            <Gavel size={20} />
-            {t("judgeSim.title")}
-          </h1>
-          <p className="text-sm text-muted-foreground">{t("judgeSim.description")}</p>
-        </div>
-
-        <div className="flex-1 px-6 py-8 max-w-2xl mx-auto w-full">
-          {error && (
-            <Card className="border-destructive/50 bg-destructive/10 mb-6">
-              <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
-            </Card>
-          )}
-
-          <p className="text-sm font-medium mb-4 text-muted-foreground uppercase tracking-wider">
-            {t("judgeSim.selectPrompt")}
-          </p>
-
-          <div className="grid grid-cols-3 gap-2">
-            {AWARDS.map((award) => (
-              <button
-                key={award}
-                onClick={() => startSession(award)}
-                disabled={loading}
-                className="text-center px-3 py-3 rounded-lg border border-border bg-card hover:bg-muted hover:border-primary/50 transition-colors text-sm font-medium leading-snug disabled:opacity-50 disabled:cursor-not-allowed"
+      <div className="pit-page">
+        <SectionHead
+          kicker="STATIONS / JUDGE SIM"
+          title="JUDGE INTERVIEW"
+          right={<span className="pit-eyebrow">SELECT AWARD TO BEGIN</span>}
+        />
+        <div className="pit-page-scroll pit-scroll">
+          <div className="pit-page-body">
+            {error && (
+              <div
+                className="pit-card"
+                style={{
+                  padding: 14,
+                  marginBottom: 14,
+                  borderColor: "var(--pit-red)",
+                  background: "var(--pit-red-soft)",
+                  color: "var(--pit-red)",
+                  fontSize: 13,
+                }}
               >
-                {award}
-              </button>
-            ))}
-          </div>
-
-          {loading && (
-            <div className="flex items-center justify-center gap-2 mt-8 text-muted-foreground text-sm">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              {t("judgeSim.starting")}
+                {error}
+              </div>
+            )}
+            <div className="pit-eyebrow" style={{ marginBottom: 8 }}>
+              SELECT THE AWARD YOU&apos;RE PRACTICING FOR
             </div>
-          )}
+            <div className="pit-judge-grid">
+              {AWARDS.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  className="pit-award-card"
+                  onClick={() => startSession(a.name)}
+                  disabled={loading}
+                >
+                  <div className="pit-award-name">{a.name}</div>
+                  <div className="pit-award-blurb">{a.blurb}</div>
+                  <div className="pit-award-trophy">{a.letter}</div>
+                </button>
+              ))}
+            </div>
+            {loading && (
+              <div className="pit-eyebrow" style={{ textAlign: "center", marginTop: 24 }}>
+                <span className="pit-thinking" style={{ marginRight: 8 }}>
+                  <i /><i /><i />
+                </span>
+                {t("judgeSim.starting")}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -188,270 +194,166 @@ export default function JudgeSimPage() {
 
   if (step === "report") {
     return (
-      <div className="flex flex-col h-full overflow-y-auto">
-        <div className="border-b border-border px-6 py-4">
-          <h1 className="text-lg font-semibold flex items-center gap-2">
-            <Gavel size={20} />
-            {t("judgeSim.title")} — {selectedAward}
-          </h1>
-          <p className="text-sm text-muted-foreground">{t("judgeSim.interviewComplete")}</p>
-        </div>
-
-        <div className="flex-1 px-6 py-8 max-w-2xl mx-auto w-full space-y-6">
-          <div className="space-y-3">
-            {messages.map((msg, i) => (
-              <div
-                key={i}
-                className={`flex ${msg.role === "team" ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[80%] rounded-lg px-4 py-2.5 text-sm ${
-                    msg.role === "judge"
-                      ? "bg-secondary border border-border text-foreground"
-                      : "bg-primary text-primary-foreground"
-                  }`}
-                >
-                  <p className={`text-xs font-semibold mb-1 ${msg.role === "judge" ? "text-muted-foreground" : "opacity-70"}`}>
-                    {msg.role === "judge" ? t("judgeSim.judge") : t("judgeSim.you")}
-                  </p>
-                  <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+      <div className="pit-page">
+        <SectionHead
+          kicker="STATIONS / JUDGE SIM"
+          title={`REPORT · ${selectedAward.toUpperCase()}`}
+          right={
+            <button onClick={resetSession} className="pit-btn">
+              <RotateCcw size={12} /> {t("judgeSim.startNew")}
+            </button>
+          }
+        />
+        <div className="pit-page-scroll pit-scroll">
+          <div className="pit-page-body">
+            <div className="pit-card" style={{ padding: 18, marginBottom: 18 }}>
+              {messages.map((m, i) => (
+                <div key={i} className={m.role === "judge" ? "pit-judge-msg" : "pit-team-msg"}>
+                  <div className="speaker">
+                    {m.role === "judge" ? "JUDGE" : t("judgeSim.you").toUpperCase()}
+                  </div>
+                  <div style={{ fontSize: 13, marginTop: 4, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+                    {m.content}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+            {gapReport && <GapReportCards report={gapReport} />}
           </div>
-
-          {gapReport && <GapReportCard report={gapReport} />}
-
-          <Button onClick={resetSession} variant="outline" className="w-full gap-2">
-            <RotateCcw size={16} />
-            {t("judgeSim.startNew")}
-          </Button>
         </div>
-      </div>
-    );
-  }
-
-  function GapReportCard({ report }: { report: GapReport }) {
-    if (
-      !report.scoreLine &&
-      report.strengths.length === 0 &&
-      report.evidenceGaps.length === 0 &&
-      report.suggestions.length === 0
-    ) {
-      return (
-        <Card className="border-amber-500/30 bg-amber-500/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 text-amber-400">
-              <Gavel size={16} />
-              {t("judgeSim.gapReport")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre className="text-sm leading-relaxed whitespace-pre-wrap text-foreground font-sans">
-              {report.raw ?? ""}
-            </pre>
-          </CardContent>
-        </Card>
-      );
-    }
-
-    const scoreColor =
-      report.score >= 75
-        ? "text-emerald-400"
-        : report.score >= 50
-        ? "text-amber-400"
-        : "text-rose-400";
-
-    return (
-      <div className="space-y-4">
-        <Card className="border-primary/30 bg-primary/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 text-primary">
-              <Gavel size={16} />
-              {t("judgeSim.gapReport")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-baseline gap-3">
-            <span className={`text-4xl font-semibold tabular-nums ${scoreColor}`}>
-              {report.score}
-            </span>
-            <span className="text-xs text-muted-foreground uppercase tracking-wider">/ 100</span>
-            {report.scoreLine && (
-              <p className="ml-2 text-sm text-foreground/90 leading-snug">
-                {report.scoreLine}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {report.strengths.length > 0 && (
-          <ReportSection
-            icon={<CheckCircle2 size={14} />}
-            title={t("judgeSim.strengths")}
-            items={report.strengths}
-            tone="emerald"
-          />
-        )}
-        {report.evidenceGaps.length > 0 && (
-          <ReportSection
-            icon={<AlertCircle size={14} />}
-            title={t("judgeSim.evidenceGaps")}
-            items={report.evidenceGaps}
-            tone="amber"
-          />
-        )}
-        {report.suggestions.length > 0 && (
-          <ReportSection
-            icon={<Lightbulb size={14} />}
-            title={t("judgeSim.suggestions")}
-            items={report.suggestions}
-            tone="primary"
-          />
-        )}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="border-b border-border px-6 py-4 flex items-center justify-between shrink-0">
-        <div>
-          <h1 className="text-lg font-semibold flex items-center gap-2">
-            <Gavel size={20} />
-            {t("judgeSim.title")} — {selectedAward}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {t("judgeSim.turn", { turn: String(turnCount) })}
-          </p>
-        </div>
-        <Button variant="ghost" size="sm" onClick={resetSession} className="gap-1 text-muted-foreground">
-          <RotateCcw size={14} />
-          {t("judgeSim.restart")}
-        </Button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`flex ${msg.role === "team" ? "justify-end" : "justify-start"}`}
-          >
-            <div
-              className={`max-w-[78%] rounded-lg px-4 py-2.5 text-sm ${
-                msg.role === "judge"
-                  ? "bg-secondary border border-border text-foreground"
-                  : "bg-primary text-primary-foreground"
-              }`}
-            >
-              <p className={`text-xs font-semibold mb-1 ${msg.role === "judge" ? "text-muted-foreground" : "opacity-70"}`}>
-                {msg.role === "judge" ? t("judgeSim.judge") : t("judgeSim.you")}
-              </p>
-              <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-            </div>
+    <div className="pit-page">
+      <SectionHead
+        kicker="STATIONS / JUDGE SIM"
+        title={`INTERVIEW · ${selectedAward.toUpperCase()}`}
+        right={
+          <>
+            <span className="pit-onair">
+              <LiveDot tone="amber" /> TURN {turnCount}
+            </span>
+            <button onClick={resetSession} className="pit-btn">
+              <RotateCcw size={12} /> {t("judgeSim.restart")}
+            </button>
+          </>
+        }
+      />
+      <div className="pit-page-scroll pit-scroll">
+        <div className="pit-page-body">
+          <div className="pit-card" style={{ padding: 18, marginBottom: 12 }}>
+            {messages.map((m, i) => (
+              <div key={i} className={m.role === "judge" ? "pit-judge-msg" : "pit-team-msg"}>
+                <div className="speaker">
+                  {m.role === "judge" ? "JUDGE" : t("judgeSim.you").toUpperCase()}
+                </div>
+                <div style={{ fontSize: 13, marginTop: 4, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+                  {m.content}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div className="pit-judge-msg pit-msg-thinking">
+                <div className="speaker">JUDGE</div>
+                <span className="pit-thinking" style={{ marginTop: 6 }}>
+                  <i /><i /><i />
+                </span>
+              </div>
+            )}
+            <div ref={bottomRef} />
           </div>
-        ))}
 
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-muted rounded-lg px-4 py-3 text-sm text-muted-foreground flex items-center gap-2">
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              {t("judgeSim.judgeThinking")}
-            </div>
-          </div>
-        )}
-
-        <div ref={bottomRef} />
-      </div>
-
-      {error && (
-        <div className="px-6 pb-2">
-          <p className="text-sm text-destructive">{error}</p>
-        </div>
-      )}
-
-      <form
-        onSubmit={handleRespond}
-        className="border-t border-border px-6 py-4 flex gap-3 items-end shrink-0"
-      >
-        <Textarea
-          value={response}
-          onChange={(e) => setResponse(e.target.value)}
-          placeholder={t("judgeSim.responsePlaceholder")}
-          className="flex-1 min-h-[60px] max-h-40 resize-none"
-          disabled={loading}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleRespond(e as unknown as React.FormEvent);
-            }
-          }}
-        />
-        <Button
-          type="submit"
-          disabled={loading || !response.trim()}
-          className="shrink-0"
-        >
-          {loading ? (
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-          ) : (
-            t("judgeSim.respond")
+          {error && (
+            <p style={{ color: "var(--pit-red)", fontSize: 12, marginBottom: 8 }}>{error}</p>
           )}
-        </Button>
-      </form>
+
+          <form onSubmit={handleRespond} className="pit-card" style={{ padding: 14 }}>
+            <div className="pit-eyebrow" style={{ marginBottom: 8 }}>YOUR RESPONSE</div>
+            <textarea
+              value={response}
+              onChange={(e) => setResponse(e.target.value)}
+              placeholder={t("judgeSim.responsePlaceholder")}
+              className="pit-compose-input"
+              rows={3}
+              disabled={loading}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleRespond(e as unknown as React.FormEvent);
+                }
+              }}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+              <button
+                type="submit"
+                disabled={loading || !response.trim()}
+                className="pit-btn pit-btn-primary"
+              >
+                <Send size={12} /> {t("judgeSim.respond")}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }
 
-function ReportSection({
-  icon,
-  title,
-  items,
-  tone,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  items: string[];
-  tone: "emerald" | "amber" | "primary";
-}) {
-  const styles = {
-    emerald: {
-      border: "border-emerald-500/30",
-      bg: "bg-emerald-500/5",
-      icon: "text-emerald-400",
-      bullet: "text-emerald-400/80",
-    },
-    amber: {
-      border: "border-amber-500/30",
-      bg: "bg-amber-500/5",
-      icon: "text-amber-400",
-      bullet: "text-amber-400/80",
-    },
-    primary: {
-      border: "border-primary/30",
-      bg: "bg-primary/5",
-      icon: "text-primary",
-      bullet: "text-primary/80",
-    },
-  }[tone];
+function GapReportCards({ report }: { report: GapReport }) {
+  if (
+    !report.scoreLine &&
+    report.strengths.length === 0 &&
+    report.evidenceGaps.length === 0 &&
+    report.suggestions.length === 0
+  ) {
+    return (
+      <div className="pit-card" style={{ padding: 16 }}>
+        <div className="pit-eyebrow" style={{ color: "var(--pit-amber)" }}>GAP REPORT</div>
+        <pre style={{ fontFamily: "var(--pit-sans)", fontSize: 13, lineHeight: 1.55, whiteSpace: "pre-wrap", marginTop: 8 }}>
+          {report.raw ?? ""}
+        </pre>
+      </div>
+    );
+  }
 
   return (
-    <Card className={`${styles.border} ${styles.bg}`}>
-      <CardHeader className="pb-2">
-        <CardTitle className={`text-base flex items-center gap-2 ${styles.icon}`}>
-          {icon}
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ul className="space-y-1.5">
-          {items.map((item, i) => (
-            <li key={i} className="flex gap-2 text-sm leading-relaxed">
-              <span className={`shrink-0 ${styles.bullet}`}>•</span>
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+      <div className="pit-card" style={{ padding: 14, gridColumn: "1 / -1" }}>
+        <div className="pit-eyebrow">PROVISIONAL SCORE</div>
+        <div className="pit-bigscore" style={{ marginTop: 4 }}>
+          <span className="num pit-tnum">{report.score}</span>
+          <span className="denom">/ 100</span>
+        </div>
+        {report.scoreLine && (
+          <p style={{ fontSize: 12, color: "var(--pit-text-3)", marginTop: 4 }}>{report.scoreLine}</p>
+        )}
+      </div>
+      {report.strengths.length > 0 && (
+        <div className="pit-card" style={{ padding: 14 }}>
+          <div className="pit-eyebrow" style={{ color: "var(--pit-green)" }}>STRENGTHS</div>
+          <ul style={{ margin: "6px 0 0", paddingLeft: 16, fontSize: 12, lineHeight: 1.55 }}>
+            {report.strengths.map((s, i) => <li key={i}>{s}</li>)}
+          </ul>
+        </div>
+      )}
+      {report.evidenceGaps.length > 0 && (
+        <div className="pit-card" style={{ padding: 14 }}>
+          <div className="pit-eyebrow" style={{ color: "var(--pit-amber)" }}>EVIDENCE GAPS</div>
+          <ul style={{ margin: "6px 0 0", paddingLeft: 16, fontSize: 12, lineHeight: 1.55 }}>
+            {report.evidenceGaps.map((s, i) => <li key={i}>{s}</li>)}
+          </ul>
+        </div>
+      )}
+      {report.suggestions.length > 0 && (
+        <div className="pit-card" style={{ padding: 14 }}>
+          <div className="pit-eyebrow" style={{ color: "var(--pit-red)" }}>RUN BACK</div>
+          <ul style={{ margin: "6px 0 0", paddingLeft: 16, fontSize: 12, lineHeight: 1.55 }}>
+            {report.suggestions.map((s, i) => <li key={i}>{s}</li>)}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }

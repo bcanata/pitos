@@ -10,10 +10,11 @@ import {
   Hash,
   Plus,
   Trash2,
-  XCircle,
   User,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Avatar, SectionHead, SubteamTag, Telemetry } from "./broadcast-atoms";
 
 type Status = "open" | "in_progress" | "done" | "blocked" | "cancelled";
 type Subteam = "build" | "programming" | "outreach" | "business";
@@ -46,22 +47,30 @@ interface Props {
   members: Member[];
 }
 
-const COLUMNS: Array<{ status: Status; label: string; icon: React.ReactNode; tone: string }> = [
-  { status: "open",        label: "Open",        icon: <Clock size={13} />,        tone: "border-muted text-muted-foreground" },
-  { status: "in_progress", label: "In progress", icon: <Clock size={13} />,        tone: "border-primary/40 text-primary" },
-  { status: "blocked",     label: "Blocked",     icon: <AlertCircle size={13} />,  tone: "border-destructive/40 text-destructive" },
-  { status: "done",        label: "Done",        icon: <CheckCircle2 size={13} />, tone: "border-emerald-500/40 text-emerald-400" },
-  { status: "cancelled",   label: "Cancelled",   icon: <XCircle size={13} />,      tone: "border-muted text-muted-foreground/70" },
+const COLUMNS: Array<{ status: Status; label: string; icon: React.ReactNode; cls: string }> = [
+  { status: "open",        label: "OPEN",        icon: <Clock size={11} />,        cls: "col-open" },
+  { status: "in_progress", label: "IN PROGRESS", icon: <Clock size={11} />,        cls: "col-progress" },
+  { status: "blocked",     label: "BLOCKED",     icon: <AlertCircle size={11} />,  cls: "col-blocked" },
+  { status: "done",        label: "DONE",        icon: <CheckCircle2 size={11} />, cls: "col-done" },
+  { status: "cancelled",   label: "CANCELLED",   icon: <XCircle size={11} />,      cls: "col-cancel" },
 ];
 
-const SUBTEAM_TONE: Record<Subteam, string> = {
-  build:       "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  programming: "bg-teal-500/20 text-teal-300 border-teal-500/30",
-  outreach:    "bg-purple-500/20 text-purple-300 border-purple-500/30",
-  business:    "bg-amber-500/20 text-amber-300 border-amber-500/30",
-};
-
 const SUBTEAMS: Subteam[] = ["build", "programming", "outreach", "business"];
+
+function computeCounts(tasks: Task[]): { open: number; inProg: number; blocked: number; overdue: number } {
+  const now = Date.now();
+  let open = 0, inProg = 0, blocked = 0, overdue = 0;
+  for (const t of tasks) {
+    if (t.status === "open") open++;
+    else if (t.status === "in_progress") inProg++;
+    else if (t.status === "blocked") blocked++;
+    if (t.deadline && t.status !== "done" && t.status !== "cancelled") {
+      const ts = new Date(t.deadline).getTime();
+      if (!Number.isNaN(ts) && ts < now) overdue++;
+    }
+  }
+  return { open, inProg, blocked, overdue };
+}
 
 function relativeDeadline(d: string | number | Date | null): { label: string; tone: string } | null {
   if (!d) return null;
@@ -86,12 +95,6 @@ function relativeDeadline(d: string | number | Date | null): { label: string; to
   }
   const tone = past ? "text-rose-400" : days <= 2 ? "text-amber-400" : "text-muted-foreground";
   return { label, tone };
-}
-
-function initials(name: string | null): string {
-  if (!name) return "?";
-  const parts = name.trim().split(/\s+/).slice(0, 2);
-  return parts.map((p) => p[0]?.toUpperCase() ?? "").join("");
 }
 
 export default function KanbanBoard({ teamId, channels, members }: Props) {
@@ -203,94 +206,118 @@ export default function KanbanBoard({ teamId, channels, members }: Props) {
     void patch(id, { status });
   }
 
+  const counts = useMemo(() => computeCounts(tasks), [tasks]);
+
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <div className="border-b border-border px-6 py-4 shrink-0">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-lg font-semibold">Tasks</h1>
-            <p className="text-sm text-muted-foreground">
-              Kanban across all channels. Drag a card between columns to change status, or click a card to reassign.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <select
-              value={filterSubteam}
-              onChange={(e) => setFilterSubteam(e.target.value as "all" | Subteam)}
-              className="bg-background border border-border rounded px-2 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="all">All subteams</option>
-              {SUBTEAMS.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            <select
-              value={filterAssignee}
-              onChange={(e) => setFilterAssignee(e.target.value)}
-              className="bg-background border border-border rounded px-2 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="all">All assignees</option>
-              {members.map((m) => (
-                <option key={m.userId} value={m.userId}>{m.name ?? "—"}</option>
-              ))}
-            </select>
+    <div className="pit-page">
+      <SectionHead
+        kicker="STATIONS / TASKS"
+        title="TASK BOARD"
+        right={
+          <>
+            <Telemetry
+              items={[
+                { label: "OPEN", value: counts.open },
+                { label: "IN-PROG", value: counts.inProg },
+                { label: "BLOCKED", value: counts.blocked },
+                { label: "OVERDUE", value: counts.overdue },
+              ]}
+            />
             <button
               onClick={() => setShowNew(true)}
-              className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 font-medium text-primary-foreground hover:bg-primary/90"
+              className="pit-btn pit-btn-primary"
             >
-              <Plus size={13} /> New task
+              <Plus size={12} /> New task
             </button>
-          </div>
-        </div>
+          </>
+        }
+      />
+
+      <div className="pit-kanban-toolbar">
+        <span className="pit-eyebrow">FILTER</span>
+        <button
+          type="button"
+          onClick={() => setFilterSubteam("all")}
+          className="pit-chip"
+          style={{ borderColor: filterSubteam === "all" ? "var(--pit-line-strong)" : undefined }}
+        >
+          All teams
+        </button>
+        {SUBTEAMS.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setFilterSubteam(s)}
+            className="pit-chip"
+            style={{
+              borderColor: filterSubteam === s ? "var(--pit-line-strong)" : undefined,
+              color: filterSubteam === s ? "var(--pit-text)" : undefined,
+            }}
+          >
+            <span className={cn("pit-subteam-dot", `pit-subteam-${s === "programming" ? "prog" : s === "outreach" ? "out" : s === "business" ? "biz" : "build"}`)} />
+            {s}
+          </button>
+        ))}
+        <select
+          value={filterAssignee}
+          onChange={(e) => setFilterAssignee(e.target.value)}
+          className="pit-input"
+          style={{ width: "auto", maxWidth: 220 }}
+        >
+          <option value="all">All assignees</option>
+          {members.map((m) => (
+            <option key={m.userId} value={m.userId}>{m.name ?? "—"}</option>
+          ))}
+        </select>
+        <span style={{ marginLeft: "auto" }} className="pit-eyebrow pit-mono">
+          VIEW · BOARD
+        </span>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-4">
-        <div className="grid grid-flow-col auto-cols-[280px] gap-4 h-full">
-          {COLUMNS.map((col) => {
-            const colTasks = filteredTasks.filter((t) => t.status === col.status);
-            const isOver = overColumn === col.status;
-            return (
-              <div
-                key={col.status}
-                onDragOver={(e) => onColumnDragOver(e, col.status)}
-                onDragLeave={() => setOverColumn((c) => (c === col.status ? null : c))}
-                onDrop={(e) => onColumnDrop(e, col.status)}
-                className={cn(
-                  "flex flex-col rounded-lg border border-border bg-card/40 transition-colors",
-                  isOver && "border-primary bg-primary/5",
-                )}
-              >
-                <div className="px-3 py-2 border-b border-border flex items-center gap-2">
-                  <span className={cn("inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wider", col.tone.split(" ").slice(1).join(" "))}>
-                    {col.icon}
-                    {col.label}
-                  </span>
-                  <span className="ml-auto text-xs text-muted-foreground tabular-nums">{colTasks.length}</span>
-                </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                  {loading && (
-                    <p className="text-xs text-muted-foreground p-2">Loading…</p>
-                  )}
-                  {!loading && colTasks.length === 0 && (
-                    <p className="text-xs text-muted-foreground/60 p-2 italic">No tasks</p>
-                  )}
-                  {colTasks.map((t) => (
-                    <TaskCard
-                      key={t.id}
-                      task={t}
-                      memberMap={memberMap}
-                      channelMap={channelMap}
-                      onClick={() => setEditing(t)}
-                      onDragStart={(e) => onDragStart(e, t.id)}
-                      onDragEnd={onDragEnd}
-                      isDragging={draggingId === t.id}
-                    />
-                  ))}
-                </div>
+      <div className="pit-kanban-board pit-scroll">
+        {COLUMNS.map((col) => {
+          const colTasks = filteredTasks.filter((t) => t.status === col.status);
+          const isOver = overColumn === col.status;
+          return (
+            <div
+              key={col.status}
+              onDragOver={(e) => onColumnDragOver(e, col.status)}
+              onDragLeave={() => setOverColumn((c) => (c === col.status ? null : c))}
+              onDrop={(e) => onColumnDrop(e, col.status)}
+              className={cn("pit-kanban-col", col.cls, isOver && "is-over")}
+            >
+              <div className="pit-kanban-col-head">
+                <span className="pit-kanban-col-title">
+                  {col.icon}
+                  {col.label}
+                </span>
+                <span className="pit-kanban-col-count pit-tnum">{colTasks.length}</span>
               </div>
-            );
-          })}
-        </div>
+              <div className="pit-kanban-col-list pit-scroll">
+                {loading && (
+                  <p className="pit-eyebrow" style={{ fontSize: 10, padding: 8 }}>Loading…</p>
+                )}
+                {!loading && colTasks.length === 0 && (
+                  <p className="pit-eyebrow" style={{ fontSize: 10, padding: 8, fontStyle: "italic" }}>
+                    No tasks
+                  </p>
+                )}
+                {colTasks.map((t) => (
+                  <TaskCard
+                    key={t.id}
+                    task={t}
+                    memberMap={memberMap}
+                    channelMap={channelMap}
+                    onClick={() => setEditing(t)}
+                    onDragStart={(e) => onDragStart(e, t.id)}
+                    onDragEnd={onDragEnd}
+                    isDragging={draggingId === t.id}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {editing && (
@@ -357,54 +384,54 @@ function TaskCard({
   const assignee = task.assignedToUserId ? memberMap.get(task.assignedToUserId) : null;
   const assigneeName = assignee?.name ?? task.assigneeName ?? null;
 
+  // Pick a left-rail tone based on status / subteam.
+  const railCls =
+    task.status === "blocked"   ? "pit-task-card-rail-amber"
+  : task.status === "done"      ? "pit-task-card-rail-green"
+  : task.assignedToSubteam === "build" ? "pit-task-card-rail-red"
+  : task.assignedToSubteam === "programming" ? "pit-task-card-rail-blue"
+  : "pit-task-card-rail-neutral";
+
+  const isDone = task.status === "done" || task.status === "cancelled";
+  const dlCls =
+    dl?.tone === "text-rose-400" ? "pit-task-deadline is-overdue"
+  : dl?.tone === "text-amber-400" ? "pit-task-deadline is-soon"
+  : "pit-task-deadline";
+
+  // Short ID — just enough to look like a real ticket.
+  const shortId = task.id.slice(0, 8).toUpperCase();
+
   return (
     <div
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={cn(
-        "rounded-md border border-border bg-card p-2.5 cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors",
-        isDragging && "opacity-40 scale-95",
-      )}
+      className={cn("pit-task-card", railCls, isDragging && "is-dragging")}
     >
-      <p className={cn(
-        "text-sm leading-snug",
-        (task.status === "done" || task.status === "cancelled") && "line-through text-muted-foreground",
-      )}>
-        {task.title}
-      </p>
-
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {task.assignedToSubteam && (
-          <span className={cn(
-            "inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded border",
-            SUBTEAM_TONE[task.assignedToSubteam],
-          )}>
-            {task.assignedToSubteam}
-          </span>
-        )}
-
-        {assigneeName && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-foreground/80">
-            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary/30 text-[9px] font-semibold text-primary">
-              {initials(assigneeName)}
-            </span>
-            {assigneeName}
-          </span>
-        )}
-
-        {dl && (
-          <span className={cn("inline-flex items-center gap-1 text-[10px]", dl.tone)}>
-            <Calendar size={10} />
-            {dl.label}
-          </span>
-        )}
-
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span className="pit-task-id pit-mono">T-{shortId}</span>
         {channelName && (
-          <span className="ml-auto inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-            <Hash size={10} />
-            {channelName}
+          <span className="pit-task-from-channel">
+            <Hash size={9} /> {channelName}
+          </span>
+        )}
+      </div>
+
+      <div className={cn("pit-task-title", isDone && "is-done")}>{task.title}</div>
+
+      <div className="pit-task-meta">
+        <SubteamTag team={task.assignedToSubteam ?? undefined} />
+        {assigneeName && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Avatar name={assigneeName} />
+            <span>{assigneeName}</span>
+          </span>
+        )}
+        {task.teachMode && <span className="pit-task-teach">Teach</span>}
+        {dl && (
+          <span className={dlCls}>
+            <Calendar size={10} /> {dl.label}
           </span>
         )}
       </div>

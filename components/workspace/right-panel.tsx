@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, ChevronLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import TaskPanel from "./task-panel";
 import AgentActivity from "./agent-activity";
 import { useT } from "@/lib/i18n/client";
@@ -18,28 +18,32 @@ export default function RightPanel({ channelId, teamId }: Props) {
   return (
     <div className="flex shrink-0 h-full">
       {/* Toggle button — always visible */}
-      <div className="flex items-center justify-center w-6 border-l border-border bg-card shrink-0">
+      <div
+        className="flex items-center justify-center w-6 shrink-0"
+        style={{
+          borderLeft: "1px solid var(--pit-line)",
+          background: "var(--pit-surface)",
+        }}
+      >
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="flex items-center justify-center w-5 h-10 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          className="pit-icon-btn"
+          style={{ width: 20, height: 36, border: 0 }}
           aria-label={expanded ? t("rightPanel.collapse") : t("rightPanel.expand")}
         >
           {expanded ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
       </div>
 
-      {/* Panel body */}
       {expanded && (
-        <div
-          className="flex flex-col h-full bg-card border-l border-border overflow-hidden"
-          style={{ width: 280 }}
-        >
-          {/* Tasks section */}
-          <div className="shrink-0 max-h-72 overflow-y-auto border-b border-border">
+        <div className="pit-right" style={{ width: 280 }}>
+          <div
+            className="shrink-0 max-h-72 overflow-y-auto"
+            style={{ borderBottom: "1px solid var(--pit-line)" }}
+          >
             <TaskPanel channelId={channelId} teamId={teamId} />
           </div>
 
-          {/* Agent activity section — fills remaining height */}
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">
             <AgentActivity channelId={channelId} teamId={teamId} />
           </div>
