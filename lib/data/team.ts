@@ -10,8 +10,20 @@ import {
   channelMembers,
   users,
 } from "@/db/schema";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { seedTeamForUser } from "@/lib/seed";
+
+/**
+ * Thrown by `loadTeamWorkspace` when the user has a membership but it's still
+ * `pending`. The workspace layout catches this and redirects to the
+ * "waiting for approval" view.
+ */
+export class MembershipPendingError extends Error {
+  constructor() {
+    super("Membership pending approval");
+    this.name = "MembershipPendingError";
+  }
+}
 
 export type Team = typeof teams.$inferSelect;
 export type Membership = typeof memberships.$inferSelect;
@@ -39,10 +51,17 @@ export type TeamWorkspaceData = {
 
 /**
  * Load the team workspace payload (team, channels, membership) for a user.
- * Auto-seeds a team on first call if the user has no membership yet.
  *
- * Same shape that `GET /api/teams/mine` returns. Used directly by server
- * components in the workspace layout — no HTTP round-trip, no APP_URL.
+ * Branches:
+ *   - Active membership → return team workspace (normal path).
+ *   - Pending membership → throw MembershipPendingError so the layout can
+ *     redirect to the waiting-for-approval view.
+ *   - No membership at all:
+ *       - Zero teams in DB → seed founder team (this is the very first user
+ *         on a fresh instance, the "fork & deploy" path).
+ *       - One or more teams → create a `pending` membership against the
+ *         oldest team and throw MembershipPendingError. Self-signed-in users
+ *         can't sneak past the approval gate.
  */
 export async function loadTeamWorkspace(userId: string): Promise<TeamWorkspaceData> {
   let membership = await db
@@ -52,12 +71,36 @@ export async function loadTeamWorkspace(userId: string): Promise<TeamWorkspaceDa
     .get();
 
   if (!membership) {
-    await seedTeamForUser(userId);
-    membership = (await db
+    const existingTeam = await db
       .select()
-      .from(memberships)
-      .where(eq(memberships.userId, userId))
-      .get())!;
+      .from(teams)
+      .orderBy(asc(teams.createdAt))
+      .get();
+
+    if (!existingTeam) {
+      // First user of a fresh instance — they become the founder.
+      await seedTeamForUser(userId);
+      membership = (await db
+        .select()
+        .from(memberships)
+        .where(eq(memberships.userId, userId))
+        .get())!;
+    } else {
+      // A team already exists. Self-signed-in users land as `pending`
+      // against the founding team and wait for a lead_mentor / captain
+      // to approve them.
+      await db.insert(memberships).values({
+        id: crypto.randomUUID(),
+        userId,
+        teamId: existingTeam.id,
+        role: "student",
+        joinedAt: new Date(),
+        status: "pending",
+      });
+      throw new MembershipPendingError();
+    }
+  } else if (membership.status === "pending") {
+    throw new MembershipPendingError();
   }
 
   const team = (await db.select().from(teams).where(eq(teams.id, membership.teamId)).get())!;

@@ -1,30 +1,32 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { db } from "@/db";
-import { invites, memberships } from "@/db/schema";
+import { invites } from "@/db/schema";
 import { eq, isNull, and } from "drizzle-orm";
-import { getSession } from "@/lib/session";
 import { isDemoUser } from "@/lib/demo";
+import { requireActiveMembership, requireRole, scopeErrorResponse } from "@/lib/auth/scope";
+
+const INVITE_ROLES = ["lead_mentor", "captain"] as const;
 
 export async function POST(request: Request) {
-  const { user } = await getSession();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (isDemoUser(user.email)) return NextResponse.json({ error: "Not available in demo" }, { status: 403 });
+  let user, membership;
+  try {
+    ({ user, membership } = await requireActiveMembership());
+    requireRole(membership, INVITE_ROLES);
+  } catch (e) {
+    const r = scopeErrorResponse(e);
+    if (r) return r;
+    throw e;
+  }
+
+  if (isDemoUser(user.email)) {
+    return NextResponse.json({ error: "Not available in demo" }, { status: 403 });
+  }
 
   const body = await request.json();
   const email: string | undefined = body?.email;
   if (!email || !email.includes("@")) {
     return NextResponse.json({ error: "Valid email required" }, { status: 400 });
-  }
-
-  const membership = await db
-    .select()
-    .from(memberships)
-    .where(eq(memberships.userId, user.id))
-    .get();
-
-  if (!membership) {
-    return NextResponse.json({ error: "You must be a team member to invite others" }, { status: 403 });
   }
 
   const { teamId } = membership;
@@ -78,18 +80,18 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  const { user } = await getSession();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (isDemoUser(user.email)) return NextResponse.json({ error: "Not available in demo" }, { status: 403 });
+  let user, membership;
+  try {
+    ({ user, membership } = await requireActiveMembership());
+    requireRole(membership, INVITE_ROLES);
+  } catch (e) {
+    const r = scopeErrorResponse(e);
+    if (r) return r;
+    throw e;
+  }
 
-  const membership = await db
-    .select()
-    .from(memberships)
-    .where(eq(memberships.userId, user.id))
-    .get();
-
-  if (!membership) {
-    return NextResponse.json({ invites: [] });
+  if (isDemoUser(user.email)) {
+    return NextResponse.json({ error: "Not available in demo" }, { status: 403 });
   }
 
   const pending = await db

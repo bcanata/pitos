@@ -12,23 +12,30 @@ export async function GET(_req: Request, { params }: Params) {
 
   const { channelId } = await params;
 
-  // agentRuns stores channelId inside inputContext JSON: { channelId, messageId, messageCount }
+  // agentRuns stores channelId inside inputContext JSON. The queue lifecycle
+  // (queued / running / completed / failed) lives on agentRuns.status; the
+  // model's parsed action / reflex / reasoning are inside the output JSON
+  // and are only present once the run actually executed.
   const runs = await db
     .select({
       id: agentRuns.id,
-      action: sql<string>`json_extract(${agentRuns.output}, '$.action')`,
+      status: agentRuns.status,
+      action: sql<string | null>`json_extract(${agentRuns.output}, '$.action')`,
       juryReflexKind: sql<string | null>`json_extract(${agentRuns.output}, '$.jury_reflex_kind')`,
       reasoning: sql<string | null>`substr(json_extract(${agentRuns.output}, '$.reasoning'), 1, 200)`,
       output: agentRuns.output,
       createdAt: agentRuns.createdAt,
       durationMs: agentRuns.durationMs,
+      attempts: agentRuns.attempts,
+      lastError: agentRuns.lastError,
+      nextAttemptAt: agentRuns.nextAttemptAt,
     })
     .from(agentRuns)
     .where(
       sql`json_extract(${agentRuns.inputContext}, '$.channelId') = ${channelId}`
     )
     .orderBy(desc(agentRuns.createdAt))
-    .limit(10)
+    .limit(15)
     .all();
 
   return NextResponse.json({ runs });

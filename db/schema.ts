@@ -75,6 +75,14 @@ export const memberships = sqliteTable(
     }),
     graduationDate: integer("graduation_date", { mode: "timestamp" }),
     joinedAt: integer("joined_at", { mode: "timestamp" }).notNull(),
+    // Approval gate. Self-signups land as "pending" and need a lead_mentor /
+    // captain to flip them to "active". Invitees and founders are inserted as
+    // "active" directly. Existing rows backfill via the column default.
+    status: text("status", { enum: ["active", "pending"] })
+      .notNull()
+      .default("active"),
+    approvedAt: integer("approved_at", { mode: "timestamp" }),
+    approvedByUserId: text("approved_by_user_id").references(() => users.id),
   },
   (t) => [
     index("memberships_user_id_idx").on(t.userId),
@@ -366,21 +374,37 @@ export const agentRuns = sqliteTable(
     teamId: text("team_id").references(() => teams.id),
     trigger: text("trigger"),
     agentType: text("agent_type").notNull(),
+    // queued = enqueued, eligible for first run.
+    // running = a worker has claimed it (lockedUntil = nextAttemptAt).
+    // completed = finished cleanly.
+    // failed = last attempt threw; if attempts < MAX, nextAttemptAt is set
+    //          to the retry time and the cron picks it up.
     status: text("status", {
-      enum: ["running", "completed", "failed"],
+      enum: ["queued", "running", "completed", "failed"],
     })
       .notNull()
-      .default("running"),
+      .default("queued"),
     inputContext: text("input_context", { mode: "json" }),
     output: text("output"),
     toolCalls: text("tool_calls", { mode: "json" }),
     tokensUsed: integer("tokens_used"),
     durationMs: integer("duration_ms"),
+    // Retry bookkeeping. attempts = number of claim transitions
+    // (queued|failed → running). lastError captures the most recent
+    // exception's message. nextAttemptAt drives both initial run and
+    // backoff retry; while running it's the deadline at which the
+    // cron will consider the job stuck and re-claim.
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    nextAttemptAt: integer("next_attempt_at", { mode: "timestamp" }),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   },
   (t) => [
     // Activity feed sort: filter teamId, order createdAt desc.
     index("agent_runs_team_created_idx").on(t.teamId, t.createdAt),
+    // Cron worker scan: status + nextAttemptAt. Two indexes is cheaper
+    // than one composite because the cron uses an OR across statuses.
+    index("agent_runs_status_next_idx").on(t.status, t.nextAttemptAt),
   ],
 );
 

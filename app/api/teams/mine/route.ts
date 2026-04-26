@@ -2,24 +2,33 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { db } from "@/db";
 import { teams, memberships } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { loadTeamWorkspace } from "@/lib/data/team";
+import { and, eq } from "drizzle-orm";
+import { loadTeamWorkspace, MembershipPendingError } from "@/lib/data/team";
 
 export async function GET() {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const data = await loadTeamWorkspace(user.id);
-  return NextResponse.json(data);
+  try {
+    const data = await loadTeamWorkspace(user.id);
+    return NextResponse.json(data);
+  } catch (e) {
+    if (e instanceof MembershipPendingError) {
+      return NextResponse.json({ error: "Membership pending approval" }, { status: 403 });
+    }
+    throw e;
+  }
 }
 
 export async function PATCH(req: Request) {
   const { user } = await getSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Only active members can edit team info — and we use status here to make
+  // sure pending self-signups can't quietly mutate team metadata.
   const membership = await db
     .select()
     .from(memberships)
-    .where(eq(memberships.userId, user.id))
+    .where(and(eq(memberships.userId, user.id), eq(memberships.status, "active")))
     .get();
   if (!membership) return NextResponse.json({ error: "No team" }, { status: 404 });
 

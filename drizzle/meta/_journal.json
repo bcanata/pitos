@@ -29,6 +29,20 @@
       "when": 1777160215930,
       "tag": "0003_material_bushwacker",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1777160663020,
+      "tag": "0004_wet_maximus",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1777161084986,
+      "tag": "0005_clever_ezekiel",
+      "breakpoints": true
     }
   ]
 }

@@ -33,6 +33,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Already on a team" }, { status: 409 });
   }
 
+  // Founder gate: only allow team creation when this is a fresh instance with
+  // no teams yet. Otherwise the user must come in through an invite or wait
+  // for approval as a pending member.
+  const anyTeam = await db.select().from(teams).get();
+  if (anyTeam) {
+    return NextResponse.json(
+      { error: "A team already exists on this instance — ask a lead mentor to invite you" },
+      { status: 403 },
+    );
+  }
+
   const body = await req.json();
   const messages: Array<{ role: "user" | "assistant"; content: string }> =
     body?.messages ?? [];

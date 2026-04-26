@@ -14,6 +14,13 @@ interface ChannelAgentInput {
   messageId: string;
   teamId: string;
   role?: MembershipRole;
+  /**
+   * Optional job-queue row id. When provided, the agent UPDATES that row
+   * with status / output / tokensUsed / durationMs at the end instead of
+   * INSERTing a new row. The job queue uses this so each "agent run"
+   * corresponds to exactly one persistent record from queue → completion.
+   */
+  jobId?: string;
 }
 
 interface AgentResponse {
@@ -26,7 +33,7 @@ interface AgentResponse {
   reasoning?: string;
 }
 
-export async function runChannelAgent({ channelId, messageId, teamId, role }: ChannelAgentInput) {
+export async function runChannelAgent({ channelId, messageId, teamId, role, jobId }: ChannelAgentInput) {
   const start = Date.now();
 
   const team = await db.select().from(teams).where(eq(teams.id, teamId)).get();
@@ -160,20 +167,35 @@ Respond with a JSON object:
       notifyTeam(teamId, { type: "task_created", data: task });
     }
 
-    const runId = crypto.randomUUID();
+    const runId = jobId ?? crypto.randomUUID();
     const durationMs = Date.now() - start;
-    await db.insert(agentRuns).values({
-      id: runId,
-      teamId,
-      trigger: `message:${messageId}`,
-      agentType: "channel",
-      status: "completed",
-      inputContext: { channelId, messageId, messageCount: recentMessages.length } as unknown as null,
-      output,
-      tokensUsed: result.usage.input_tokens + result.usage.output_tokens,
-      durationMs,
-      createdAt: new Date(),
-    });
+    if (jobId) {
+      // Job queue path: update the existing queued/running row in place
+      // so we keep one persistent record per agent invocation.
+      await db.update(agentRuns)
+        .set({
+          status: "completed",
+          output,
+          tokensUsed: result.usage.input_tokens + result.usage.output_tokens,
+          durationMs,
+          nextAttemptAt: null,
+          lastError: null,
+        })
+        .where(eq(agentRuns.id, jobId));
+    } else {
+      await db.insert(agentRuns).values({
+        id: runId,
+        teamId,
+        trigger: `message:${messageId}`,
+        agentType: "channel",
+        status: "completed",
+        inputContext: { channelId, messageId, messageCount: recentMessages.length } as unknown as null,
+        output,
+        tokensUsed: result.usage.input_tokens + result.usage.output_tokens,
+        durationMs,
+        createdAt: new Date(),
+      });
+    }
     notifyTeam(teamId, {
       type: "agent_run",
       data: {
@@ -181,6 +203,7 @@ Respond with a JSON object:
         channelId,
         channelName: channel.name,
         agentType: "channel",
+        status: "completed",
         action: parsed?.action ?? "no_action",
         juryReflexKind: parsed?.jury_reflex_kind ?? null,
         reasoning: parsed?.reasoning ?? null,
@@ -189,6 +212,10 @@ Respond with a JSON object:
     });
 
   } catch (err) {
+    // Re-throw when running under the job queue so the queue can mark the
+    // row failed and schedule a retry. Standalone callers (no jobId) still
+    // get the legacy "log + record" behaviour.
+    if (jobId) throw err;
     console.error("[agent:channel] error:", err);
 
     const runId = crypto.randomUUID();

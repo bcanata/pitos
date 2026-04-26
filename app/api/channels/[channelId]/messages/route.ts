@@ -1,18 +1,23 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/session";
 import { db } from "@/db";
-import { messages, channels, memberships } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { messages } from "@/db/schema";
 import { notifyChannel, notifyTeam } from "@/lib/sse";
 import { isDemoUser } from "@/lib/demo";
 import { loadChannelMessages } from "@/lib/data/messages";
+import { requireChannelAccess, scopeErrorResponse } from "@/lib/auth/scope";
+import { enqueueChannelAgentJob } from "@/lib/agents/job-queue";
 
 type Params = { params: Promise<{ channelId: string }> };
 
 export async function GET(req: Request, { params }: Params) {
-  const { user } = await getSession();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { channelId } = await params;
+  try {
+    await requireChannelAccess(channelId);
+  } catch (e) {
+    const r = scopeErrorResponse(e);
+    if (r) return r;
+    throw e;
+  }
 
   const url = new URL(req.url);
   const beforeParam = url.searchParams.get("before");
@@ -26,19 +31,23 @@ export async function GET(req: Request, { params }: Params) {
 }
 
 export async function POST(req: Request, { params }: Params) {
-  const { user } = await getSession();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (isDemoUser(user.email)) return NextResponse.json({ error: "Demo users cannot send messages" }, { status: 403 });
   const { channelId } = await params;
+
+  let user, membership;
+  try {
+    ({ user, membership } = await requireChannelAccess(channelId));
+  } catch (e) {
+    const r = scopeErrorResponse(e);
+    if (r) return r;
+    throw e;
+  }
+
+  if (isDemoUser(user.email)) {
+    return NextResponse.json({ error: "Demo users cannot send messages" }, { status: 403 });
+  }
 
   const { content } = await req.json();
   if (!content?.trim()) return NextResponse.json({ error: "Empty message" }, { status: 400 });
-
-  const ch = await db.select().from(channels).where(eq(channels.id, channelId)).get();
-  if (!ch) return NextResponse.json({ error: "Channel not found" }, { status: 404 });
-
-  const membership = await db.select().from(memberships).where(eq(memberships.userId, user.id)).get();
-  if (!membership) return NextResponse.json({ error: "Not a team member" }, { status: 403 });
 
   const message = {
     id: crypto.randomUUID(),
@@ -50,21 +59,20 @@ export async function POST(req: Request, { params }: Params) {
   };
   await db.insert(messages).values(message);
 
-  triggerChannelAgent(channelId, message.id, membership.teamId, membership.role).catch(console.error);
+  // Persist the agent job to agent_runs as status=queued and best-effort
+  // start it inline. If this instance is torn down before the agent
+  // finishes, the row stays queued/running; the cron at /api/cron/agent-jobs
+  // picks it up and runs (or retries) in another instance.
+  await enqueueChannelAgentJob({
+    teamId: membership.teamId,
+    channelId,
+    messageId: message.id,
+    role: membership.role,
+  });
 
   const eventData = { ...message, senderName: user.name };
   notifyChannel(channelId, { type: "message", data: eventData });
   notifyTeam(membership.teamId, { type: "message", data: eventData });
 
   return NextResponse.json({ message });
-}
-
-async function triggerChannelAgent(
-  channelId: string,
-  messageId: string,
-  teamId: string,
-  role: "lead_mentor" | "mentor" | "captain" | "student",
-) {
-  const { runChannelAgent } = await import("@/lib/agents/channel-agent");
-  await runChannelAgent({ channelId, messageId, teamId, role });
 }

@@ -42,6 +42,20 @@ export async function GET(request: Request) {
         subteam: invite.subteam ?? undefined,
         joinedAt: new Date(),
       });
+    } else if (existingMembership.status === "pending") {
+      // The user previously self-signed-in (now has a pending row) and is
+      // now redeeming an invite for the same team — the invite IS the
+      // approval, so flip them to active and apply the invite's role.
+      await db
+        .update(memberships)
+        .set({
+          status: "active",
+          role: invite.role,
+          subteam: invite.subteam ?? existingMembership.subteam,
+          approvedAt: new Date(),
+          approvedByUserId: invite.invitedByUserId,
+        })
+        .where(eq(memberships.id, existingMembership.id));
     }
 
     await db.update(invites).set({ acceptedAt: new Date() }).where(eq(invites.token, token));
