@@ -59,17 +59,17 @@ export default async function WorkspaceAppLayout({ children }: { children: React
 
   return (
     <div className="pit-root flex flex-col h-screen bg-background overflow-hidden">
-      <BroadcastBar
-        team={wireTeam}
-        user={wireUser}
-        telemetry={[
-          { label: "CH", value: channelCount },
-          { label: "TASKS OPEN", value: openTaskCount },
-          { label: "BLOCKED", value: blockedTaskCount },
-          { label: "DEC LOG", value: decisionCount },
-        ]}
-      />
       <MobileShellProvider>
+        <BroadcastBar
+          team={wireTeam}
+          user={wireUser}
+          telemetry={[
+            { label: "CH", value: channelCount },
+            { label: "TASKS OPEN", value: openTaskCount },
+            { label: "BLOCKED", value: blockedTaskCount },
+            { label: "DEC LOG", value: decisionCount },
+          ]}
+        />
         <div className="flex flex-1 min-h-0 overflow-hidden">
           <ChannelSidebar
             team={team}
