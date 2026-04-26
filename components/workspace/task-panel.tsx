@@ -10,6 +10,7 @@ import { useT } from "@/lib/i18n/client";
 interface Task {
   id: string;
   channelId: string | null;
+  channelName?: string | null;
   title: string;
   description: string | null;
   assigneeName: string | null;
@@ -57,7 +58,7 @@ const STATUS_CONFIG: Record<Task["status"], StatusConfig> = {
   },
 };
 
-export default function TaskPanel({ channelId, teamId }: Props) {
+export default function TaskPanel({ teamId }: Props) {
   const t = useT();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,15 +69,11 @@ export default function TaskPanel({ channelId, teamId }: Props) {
       const res = await fetch("/api/tasks");
       if (!res.ok) return;
       const data = await res.json();
-      const all: Task[] = data.tasks ?? [];
-      const channelTasks = all.filter(
-        (task) => task.channelId === channelId || task.channelId === null
-      );
-      setTasks(channelTasks.length > 0 ? channelTasks : all);
+      setTasks(data.tasks ?? []);
     } finally {
       setLoading(false);
     }
-  }, [channelId]);
+  }, []);
 
   useEffect(() => {
     fetchTasks();
@@ -89,21 +86,13 @@ export default function TaskPanel({ channelId, teamId }: Props) {
       let parsed: { type?: string; data?: unknown } = {};
       try { parsed = JSON.parse(e.data); } catch { return; }
       const { type, data } = parsed;
-      if (type === "task_created") {
-        const task = data as Task;
-        if (task.channelId !== channelId && task.channelId !== null) return;
-        setTasks((prev) => (prev.find((t) => t.id === task.id) ? prev : [task, ...prev]));
-      } else if (type === "task_updated") {
-        const upd = data as { id: string; channelId?: string | null; status: Task["status"]; completedAt?: string | null };
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === upd.id ? { ...t, status: upd.status } : t,
-          ),
-        );
+      if (type === "task_created" || type === "task_updated" || type === "task_deleted") {
+        // Refetch so the full task object (channelName, assigneeName) is always populated.
+        fetchTasks();
       }
     };
     return () => es.close();
-  }, [teamId, channelId]);
+  }, [teamId, fetchTasks]);
 
   async function markDone(taskId: string) {
     setMarkingDone(taskId);
@@ -207,6 +196,11 @@ function TaskRow({
             {config.icon}
             {t(config.labelKey)}
           </span>
+          {task.channelName && (
+            <span className="text-xs text-muted-foreground opacity-60">
+              #{task.channelName}
+            </span>
+          )}
           {task.assigneeName && (
             <span className="text-xs text-muted-foreground">
               → {task.assigneeName}
