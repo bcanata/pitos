@@ -188,6 +188,9 @@ export const messages = sqliteTable(
     // are written. See lib/auth/scope.ts canDeleteMessage for the rank rule.
     deletedAt: integer("deleted_at", { mode: "timestamp" }),
     deletedByUserId: text("deleted_by_user_id").references(() => users.id),
+    // Only set for demo-user messages — used to enforce per-IP rate limits
+    // without a separate table. Null for all authenticated (non-demo) messages.
+    senderIp: text("sender_ip"),
   },
   (t) => [
     // Composite index drives every channel-feed query: filter by channelId,

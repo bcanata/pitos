@@ -27,7 +27,7 @@ export default async function PendingApprovalPage() {
     .get();
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gray-950 text-gray-100 px-6">
+    <main className="flex min-h-dvh flex-col items-center justify-center bg-gray-950 text-gray-100 px-6">
       <div className="max-w-md w-full text-center space-y-4">
         <span className="inline-block rounded-full bg-amber-500/15 text-amber-300 text-xs font-medium tracking-wide uppercase px-2.5 py-1">
           Pending approval

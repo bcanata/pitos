@@ -97,7 +97,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center bg-gray-950 text-gray-100">
+    <main className="flex min-h-dvh flex-col items-center bg-gray-950 text-gray-100">
       {/* Header */}
       <div className="w-full max-w-2xl px-4 pt-10 pb-4">
         <div className="flex items-center gap-3">

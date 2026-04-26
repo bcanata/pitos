@@ -50,7 +50,7 @@ function AuthFormInner({ error }: { error?: string }) {
     : null;
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-4 bg-background">
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 p-4 bg-background">
       {/* Wordmark */}
       <div className="text-center">
         <p className="text-4xl font-bold tracking-tight text-primary">PitOS</p>

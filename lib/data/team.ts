@@ -87,18 +87,21 @@ export async function loadTeamWorkspace(userId: string): Promise<TeamWorkspaceDa
         .where(eq(memberships.userId, userId))
         .get())!;
     } else {
-      // A team already exists. Self-signed-in users land as `pending`
-      // against the founding team and wait for a lead_mentor / captain
-      // to approve them.
+      // A team already exists — auto-approve new members as students.
       await db.insert(memberships).values({
         id: crypto.randomUUID(),
         userId,
         teamId: existingTeam.id,
         role: "student",
         joinedAt: new Date(),
-        status: "pending",
+        status: "active",
+        approvedAt: new Date(),
       });
-      throw new MembershipPendingError();
+      membership = (await db
+        .select()
+        .from(memberships)
+        .where(eq(memberships.userId, userId))
+        .get())!;
     }
   } else if (membership.status === "pending") {
     throw new MembershipPendingError();

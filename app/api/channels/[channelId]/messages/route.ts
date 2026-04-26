@@ -6,7 +6,7 @@ import { displayName, isDemoUser } from "@/lib/demo";
 import { loadChannelMessages } from "@/lib/data/messages";
 import { requireChannelAccess, scopeErrorResponse } from "@/lib/auth/scope";
 import { enqueueChannelAgentJob } from "@/lib/agents/job-queue";
-import { checkAgentRateLimit, rateLimitMessage } from "@/lib/agents/rate-limit";
+import { checkAgentRateLimit, checkDemoIpRateLimit, extractClientIp, rateLimitMessage } from "@/lib/agents/rate-limit";
 
 type Params = { params: Promise<{ channelId: string }> };
 
@@ -43,25 +43,32 @@ export async function POST(req: Request, { params }: Params) {
     throw e;
   }
 
-  if (isDemoUser(user.email)) {
-    return NextResponse.json({ error: "Demo users cannot send messages" }, { status: 403 });
-  }
-
   const { content } = await req.json();
   if (!content?.trim()) return NextResponse.json({ error: "Empty message" }, { status: 400 });
 
-  const limit = await checkAgentRateLimit({ userId: user.id });
-  if (!limit.ok) {
-    return NextResponse.json(
-      {
-        error: "rate_limited",
-        reason: limit.reason,
-        used: limit.used,
-        limit: limit.limit,
-        message: rateLimitMessage(limit),
-      },
-      { status: 429 },
-    );
+  let senderIp: string | null = null;
+
+  if (isDemoUser(user.email)) {
+    const ip = extractClientIp(req);
+    const ipLimit = await checkDemoIpRateLimit(ip);
+    if (!ipLimit.ok) {
+      return NextResponse.json({ error: "rate_limited", message: ipLimit.message }, { status: 429 });
+    }
+    senderIp = ipLimit.senderIp;
+  } else {
+    const limit = await checkAgentRateLimit({ userId: user.id });
+    if (!limit.ok) {
+      return NextResponse.json(
+        {
+          error: "rate_limited",
+          reason: limit.reason,
+          used: limit.used,
+          limit: limit.limit,
+          message: rateLimitMessage(limit),
+        },
+        { status: 429 },
+      );
+    }
   }
 
   const message = {
@@ -71,6 +78,7 @@ export async function POST(req: Request, { params }: Params) {
     content: content.trim(),
     agentGenerated: false as const,
     createdAt: new Date(),
+    senderIp,
   };
   await db.insert(messages).values(message);
 

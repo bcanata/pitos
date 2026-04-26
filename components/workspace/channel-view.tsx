@@ -58,7 +58,6 @@ export default function ChannelView({
   // Track when the user has just mentioned @pitos and we're awaiting a reply.
   // Cleared when an agent-generated message arrives, or after a 30s safety timeout.
   const [pitosThinkingSince, setPitosThinkingSince] = useState<number | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Scroll-position preservation across older-message prepends.
   const prependCounter = useRef(0);
@@ -226,12 +225,16 @@ export default function ChannelView({
 
   // Scroll to bottom on new messages — but only if the user was already near
   // the bottom. If they've scrolled up to read history, don't yank them back.
+  // Use instant scroll (not smooth) so streaming chunks don't desync the
+  // animation: smooth scroll is async, so when the next chunk arrives the
+  // previous animation hasn't finished and scrollTop still reads stale,
+  // making distance appear > 200 and killing the follow behaviour.
   useEffect(() => {
     const sc = scrollRef.current;
     if (!sc) return;
     const distance = sc.scrollHeight - sc.scrollTop - sc.clientHeight;
     if (distance < 200) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      sc.scrollTop = sc.scrollHeight;
     }
   }, [messages]);
 
@@ -273,7 +276,8 @@ export default function ChannelView({
   }, [messages.length, channel.id]);
 
   function scrollToBottom() {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const sc = scrollRef.current;
+    if (sc) sc.scrollTop = sc.scrollHeight;
     fetch(`/api/channels/${channel.id}/read`, { method: "POST" }).catch(() => {});
   }
 
@@ -447,7 +451,6 @@ export default function ChannelView({
             </div>
           )}
         </div>
-        <div ref={bottomRef} />
         {showScrollDown && (
           <button
             type="button"
